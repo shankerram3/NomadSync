@@ -1,0 +1,7 @@
+{
+  "name": "NomadSync",
+  "description": "A collaborative travel companion for planning trips with friends. Features AI-powered itinerary generation using Google Maps data, real-time expense splitting, and trip organization.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
