@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NomadSync - AI Travel Planner</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>" />
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+  }
+}
+  </script>
+  <script>
+    // Load Google Maps API dynamically
+    window.initGoogleMaps = function() {
+      window.googleMapsLoaded = true;
+      if (window.onGoogleMapsReady) {
+        window.onGoogleMapsReady();
+      }
+    };
+    
+    // Use the API key provided
+    const apiKey = 'AIzaSyDC1blo9wqVdvNxhYqSl68ypMw21c8ZWyk';
+    
+    // Load Google Maps script with marker library for AdvancedMarkerElement
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initGoogleMaps&libraries=places,marker&loading=async`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  </script>
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
