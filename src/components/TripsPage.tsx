@@ -237,17 +237,15 @@ export function TripsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredTrips.map((trip, index) => (
-            <motion.div
-              key={trip.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-            >
-              <TripCard trip={trip} onClick={() => handleTripClick(trip.id)} />
-            </motion.div>
-          ))}
-        </div>
-
+              <motion.div
+                key={trip.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+              >
+                <TripCard trip={trip} onClick={() => handleTripClick(trip.id)} />
+              </motion.div>
+            ))}
             {filteredTrips.length === 0 && !isLoading && (
               <div className="text-center py-12 col-span-full">
                 <Plane className="w-16 h-16 text-gray-300 mx-auto mb-4" />
