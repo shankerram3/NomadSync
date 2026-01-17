@@ -7,7 +7,13 @@ from app.models.message import MessageCreate, Message
 from app.utils.auth import get_current_user_id
 from app.utils.trip_permissions import check_trip_access
 
+
+
+
+
 router = APIRouter(prefix="/trips/{trip_id}/messages", tags=["messages"])
+
+
 
 
 @router.get("", response_model=List[dict])

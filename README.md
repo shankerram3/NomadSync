@@ -15,6 +15,7 @@ A modern, AI-powered collaborative travel planning application that helps groups
 - **AI-Powered Memory**: Automatically extracts and stores trip preferences and decisions
 - **Plan Versioning**: Track multiple versions of trip plans
 - **Conflict Resolution**: Vote-based system for resolving planning conflicts
+- **LangGraph Agent**: AI-powered trip planning workflow with OpenAI integration
 - **Modern UI**: Beautiful, responsive interface built with Tailwind CSS and Framer Motion
 - **Role-Based Access**: Trip members with different permission levels
 
@@ -38,6 +39,8 @@ A modern, AI-powered collaborative travel planning application that helps groups
 - **JWT** - Authentication tokens
 - **Bcrypt** - Password hashing
 - **Uvicorn** - ASGI server
+- **LangGraph** - Agent workflow orchestration
+- **OpenAI** - AI model integration
 
 ## 📁 Project Structure
 
@@ -45,6 +48,7 @@ A modern, AI-powered collaborative travel planning application that helps groups
 NomadSync/
 ├── backend/                 # FastAPI backend
 │   ├── app/
+│   │   ├── agents/         # LangGraph agent workflow
 │   │   ├── models/         # Pydantic models
 │   │   ├── routers/        # API route handlers
 │   │   ├── utils/          # Utility functions
@@ -52,7 +56,7 @@ NomadSync/
 │   │   ├── database.py     # MongoDB connection
 │   │   └── main.py         # FastAPI app
 │   ├── requirements.txt    # Python dependencies
-│   └── README.md           # Backend documentation
+│   └── run.sh              # Server startup script
 ├── src/                    # React frontend
 │   ├── components/         # React components
 │   ├── contexts/           # React contexts (Auth)
@@ -70,6 +74,7 @@ NomadSync/
 - **Node.js** 18+ and npm
 - **Python** 3.12+ (3.11 also works, avoid 3.14 due to Pydantic compatibility)
 - **MongoDB** (local installation or Docker)
+- **OpenAI API Key** (for AI agent features, optional)
 
 ### Installation
 
@@ -85,7 +90,7 @@ cd NomadSync
 ```bash
 cd backend
 
-# Create virtual environment
+# Create virtual environment (use Python 3.11 or 3.12)
 python3.12 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
@@ -94,7 +99,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-**Note**: If you encounter Pydantic build errors, ensure you're using Python 3.11 or 3.12. See `backend/SETUP.md` for troubleshooting.
+**Python Version Note**: Python 3.14 is very new and some packages may not have full support yet. If you encounter build errors (especially with `pydantic-core`), use **Python 3.11 or 3.12** which are more stable and widely supported.
 
 #### 3. MongoDB Setup
 
@@ -123,6 +128,10 @@ JWT_SECRET=your-secret-key-here-change-in-production
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Optional: For AI agent features
+OPENAI_API_KEY=your-openai-key
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
 #### 5. Frontend Setup
@@ -194,10 +203,62 @@ Frontend will be available at `http://localhost:5173`
 - `GET /trips/{trip_id}/memory` - Get trip memory
 - `PATCH /trips/{trip_id}/memory` - Update trip memory
 
+### Agents
+- `POST /agents/plan` - Run LangGraph agent workflow for trip planning
+
 **Note**: Most endpoints require authentication. Include the access token in the Authorization header:
 ```
 Authorization: Bearer <access_token>
 ```
+
+## 🤖 LangGraph Agent Workflow
+
+NomadSync includes a LangGraph-powered workflow for agentic trip planning. The workflow parses intent, plans tasks, requests critical clarifications, executes tasks, and synthesizes a response. It uses the OpenAI API for structured parsing and response synthesis.
+
+### Setup
+
+1. **Install dependencies** (already listed in `backend/requirements.txt`):
+```bash
+pip install -r backend/requirements.txt
+```
+
+2. **Configure environment variables** in `backend/.env`:
+```env
+OPENAI_API_KEY=your-openai-key
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+### API Endpoint
+
+`POST /agents/plan`
+
+**Request body:**
+```json
+{
+  "message": "Plan my trip from Tempe to SF Jan 12-14 for 4 people.",
+  "trip_context": {},
+  "trip_memory": {
+    "group_size": 4
+  }
+}
+```
+
+**Response shape:**
+```json
+{
+  "clarification": null,
+  "response": "Natural-language response from the agent.",
+  "intent": { "destinations": ["San Francisco"], "...": "..." },
+  "task_plan": { "tasks": [ "..." ] },
+  "completed_tasks": { "search_flights": { "status": "not_implemented" } }
+}
+```
+
+### Extending the Agent
+
+- **Tool integrations**: Replace the placeholders in `backend/app/agents/langgraph_workflow.py` (`execute_single_task`) with calls to real providers (flight search, hotels, weather, etc.).
+- **Memory persistence**: Pipe `trip_memory` from the `/memory` endpoints into the agent request, then write back updates after the agent completes.
+- **Frontend wiring**: Call `/agents/plan` from the chat UI and render `clarification` immediately when present. Persist `response` into `/messages`.
 
 ## 🔐 Authentication Flow
 
@@ -229,10 +290,53 @@ MongoDB collections:
 - **TripSidebar** - Navigation sidebar
 - **ProtectedRoute** - Route guard for authentication
 
-### State Management
-- **AuthContext** - Global authentication state
-- **Service Layer** - API communication abstraction
-- **API Client** - Centralized HTTP client with token management
+### Architecture
+
+#### API Client (`src/lib/api.ts`)
+- Centralized HTTP client with automatic token management
+- Handles authentication headers
+- Manages token storage in localStorage
+- Base URL configurable via `VITE_API_URL` environment variable
+
+#### Service Layer (`src/services/`)
+- **auth.ts**: Authentication (login, register, refresh token)
+- **trips.ts**: Trip CRUD operations
+- **messages.ts**: Chat message operations
+- **conflicts.ts**: Conflict resolution and voting
+- **plan.ts**: Trip plan versioning
+- **memory.ts**: AI-extracted trip memory
+
+#### Authentication Context (`src/contexts/AuthContext.tsx`)
+- Provides authentication state throughout the app
+- Manages user session
+- Handles login/logout
+- Protected routes check authentication status
+
+### Data Flow
+
+#### Trips Page
+- Fetches trips on mount: `tripsService.getAll()`
+- Creates new trip: `tripsService.create()`
+- Displays trip cards with real data from API
+
+#### Trip Planner
+- Loads trip data on mount:
+  - Messages: `messagesService.getByTrip(tripId)`
+  - Memory: `memoryService.get(tripId)`
+  - Plan: `planService.get(tripId)`
+- Sends messages: `messagesService.create(tripId, data)`
+- Updates memory/plan as user interacts
+
+#### Error Handling
+- API errors are caught and displayed to users
+- 401 errors automatically clear tokens and redirect to login
+- Network errors show user-friendly messages
+
+#### Token Management
+- Access tokens stored in localStorage
+- Refresh tokens used to get new access tokens
+- Tokens automatically included in API requests
+- Logout clears all tokens
 
 ## 🔧 Development
 
@@ -271,11 +375,41 @@ The backend runs directly with uvicorn. For production, consider:
 
 ### Backend Issues
 
-1. **Pydantic build errors**: Use Python 3.11 or 3.12 (not 3.14)
-2. **MongoDB connection errors**: Ensure MongoDB is running on port 27017
-3. **Bcrypt version warning**: Should be resolved with `bcrypt<5.0.0` in requirements.txt
+#### Pydantic Build Errors
+If you encounter errors building `pydantic-core`:
 
-See `backend/SETUP.md` for detailed troubleshooting.
+1. **Use Python 3.11 or 3.12** (most reliable solution)
+   ```bash
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. **Install pre-built wheels:**
+   ```bash
+   pip install --only-binary :all: -r requirements.txt
+   ```
+
+3. **Update pip and setuptools:**
+   ```bash
+   pip install --upgrade pip setuptools wheel
+   ```
+
+#### MongoDB Connection Errors
+Make sure MongoDB is running:
+```bash
+# Check if MongoDB is running (macOS)
+brew services list | grep mongodb
+
+# Start if not running
+brew services start mongodb-community
+
+# Or check Docker container
+docker ps | grep mongo
+```
+
+#### Bcrypt Version Warning
+This should be resolved with `bcrypt<5.0.0` in requirements.txt. If you see warnings, ensure you're using the pinned version.
 
 ### Frontend Issues
 
@@ -286,20 +420,23 @@ See `backend/SETUP.md` for detailed troubleshooting.
 ## 📝 Environment Variables
 
 ### Backend (.env)
-- `MONGODB_URI` - MongoDB connection string
-- `MONGODB_DB_NAME` - Database name
-- `JWT_SECRET` - Secret key for JWT signing
-- `JWT_ALGORITHM` - JWT algorithm (default: HS256)
-- `ACCESS_TOKEN_EXPIRE_MINUTES` - Access token expiry
-- `REFRESH_TOKEN_EXPIRE_DAYS` - Refresh token expiry
+- `MONGODB_URI` - MongoDB connection string (default: `mongodb://localhost:27017`)
+- `MONGODB_DB_NAME` - Database name (default: `nomadsync`)
+- `JWT_SECRET` - Secret key for JWT signing (change in production!)
+- `JWT_ALGORITHM` - JWT algorithm (default: `HS256`)
+- `ACCESS_TOKEN_EXPIRE_MINUTES` - Access token expiry (default: `30`)
+- `REFRESH_TOKEN_EXPIRE_DAYS` - Refresh token expiry (default: `7`)
+- `OPENAI_API_KEY` - OpenAI API key for agent features (optional)
+- `OPENAI_MODEL` - OpenAI model to use (default: `gpt-4.1-mini`)
 
 ### Frontend (.env)
-- `VITE_API_URL` - Backend API URL (default: http://localhost:8000)
+- `VITE_API_URL` - Backend API URL (default: `http://localhost:8000`)
 
 ## 🚧 Roadmap
 
 - [ ] Real-time message updates (WebSocket)
-- [ ] AI agent integration for automatic plan generation
+- [ ] Complete agent integration in chat UI
+- [ ] Tool integrations for flights, hotels, weather APIs
 - [ ] Image upload for trip covers
 - [ ] User avatars and profiles
 - [ ] Email notifications
@@ -314,12 +451,6 @@ This project is private and proprietary.
 ## 👥 Contributing
 
 This is a private project. For questions or issues, please contact the maintainers.
-
-## 📚 Additional Documentation
-
-- [Backend README](backend/README.md) - Detailed backend documentation
-- [Integration Guide](INTEGRATION.md) - Frontend-backend integration details
-- [Backend Setup](backend/SETUP.md) - Backend troubleshooting guide
 
 ---
 
