@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import List
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -12,6 +13,18 @@ class Settings(BaseSettings):
     cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
+    
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            # Handle comma-separated string
+            if "," in v:
+                return [origin.strip() for origin in v.split(",")]
+            # Handle single string
+            return [v.strip()]
+        # Already a list or other type
+        return v
     
     class Config:
         env_file = ".env"

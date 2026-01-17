@@ -27,9 +27,14 @@ async def get_trips(user_id: str = Depends(get_current_user_id)):
             "status": trip.get("status", "draft"),
             "readiness": trip.get("readiness", 0),
             "cover_image": trip.get("cover_image"),
-            "members": trip.get("members", []),
-            "created_at": trip.get("created_at"),
-            "updated_at": trip.get("updated_at"),
+            "members": [
+                {"userId": str(m["userId"]), "role": m["role"]}
+                if isinstance(m.get("userId"), ObjectId)
+                else m
+                for m in trip.get("members", [])
+            ],
+            "created_at": trip.get("createdAt"),
+            "updated_at": trip.get("updatedAt"),
         }
         for trip in trips
     ]
@@ -41,7 +46,10 @@ async def create_trip(trip_data: TripCreate, user_id: str = Depends(get_current_
     db = get_database()
     
     now = datetime.utcnow()
+    # Generate tripId first to use for the unique index
+    trip_id = str(ObjectId())
     trip_doc = {
+        "tripId": trip_id,
         "title": trip_data.title,
         "destination": trip_data.destination,
         "dates": trip_data.dates.dict() if trip_data.dates else None,
@@ -56,9 +64,25 @@ async def create_trip(trip_data: TripCreate, user_id: str = Depends(get_current_
     result = await db.trips.insert_one(trip_doc)
     trip_doc["_id"] = result.inserted_id
     
+    # Convert ObjectId to string in members for response
+    members = [
+        {"userId": str(m["userId"]), "role": m["role"]}
+        if isinstance(m.get("userId"), ObjectId)
+        else m
+        for m in trip_doc.get("members", [])
+    ]
+    
     return {
         "id": str(trip_doc["_id"]),
-        **{k: v for k, v in trip_doc.items() if k != "_id"}
+        "title": trip_doc["title"],
+        "destination": trip_doc.get("destination"),
+        "dates": trip_doc.get("dates"),
+        "status": trip_doc.get("status", "draft"),
+        "readiness": trip_doc.get("readiness", 0),
+        "cover_image": trip_doc.get("cover_image"),
+        "members": members,
+        "created_at": trip_doc.get("createdAt"),
+        "updated_at": trip_doc.get("updatedAt"),
     }
 
 
@@ -66,6 +90,14 @@ async def create_trip(trip_data: TripCreate, user_id: str = Depends(get_current_
 async def get_trip(trip_id: str, user_id: str = Depends(get_current_user_id)):
     """Get a specific trip"""
     trip = await check_trip_access(trip_id, user_id)
+    
+    # Convert ObjectId to string in members for response
+    members = [
+        {"userId": str(m["userId"]), "role": m["role"]}
+        if isinstance(m.get("userId"), ObjectId)
+        else m
+        for m in trip.get("members", [])
+    ]
     
     return {
         "id": str(trip["_id"]),
@@ -75,9 +107,9 @@ async def get_trip(trip_id: str, user_id: str = Depends(get_current_user_id)):
         "status": trip.get("status", "draft"),
         "readiness": trip.get("readiness", 0),
         "cover_image": trip.get("cover_image"),
-        "members": trip.get("members", []),
-        "created_at": trip.get("created_at"),
-        "updated_at": trip.get("updated_at"),
+        "members": members,
+        "created_at": trip.get("createdAt"),
+        "updated_at": trip.get("updatedAt"),
     }
 
 
@@ -108,6 +140,15 @@ async def update_trip(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
     
     updated = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    
+    # Convert ObjectId to string in members for response
+    members = [
+        {"userId": str(m["userId"]), "role": m["role"]}
+        if isinstance(m.get("userId"), ObjectId)
+        else m
+        for m in updated.get("members", [])
+    ]
+    
     return {
         "id": str(updated["_id"]),
         "title": updated["title"],
@@ -116,9 +157,9 @@ async def update_trip(
         "status": updated.get("status", "draft"),
         "readiness": updated.get("readiness", 0),
         "cover_image": updated.get("cover_image"),
-        "members": updated.get("members", []),
-        "created_at": updated.get("created_at"),
-        "updated_at": updated.get("updated_at"),
+        "members": members,
+        "created_at": updated.get("createdAt"),
+        "updated_at": updated.get("updatedAt"),
     }
 
 

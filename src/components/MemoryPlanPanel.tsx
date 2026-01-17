@@ -1,26 +1,14 @@
 import { useState } from 'react';
 import { Brain, Calendar, AlertCircle, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-interface TripMemoryItem {
-  value: string;
-  confidence: number;
-  sources: number[];
-}
-
-interface TripMemory {
-  destination: TripMemoryItem;
-  dates: TripMemoryItem;
-  budget: TripMemoryItem;
-  pace: TripMemoryItem;
-  duration: TripMemoryItem;
-}
+import { PlanVersion } from '../services/plan';
+import { TripMemory, MemoryField } from '../services/memory';
 
 interface MemoryPlanPanelProps {
   activeTab: 'memory' | 'plan';
   setActiveTab: (tab: 'memory' | 'plan') => void;
-  tripMemory: TripMemory;
-  planVersion: number;
+  tripMemory: TripMemory | null;
+  planVersion: PlanVersion | null;
   messages: any[];
 }
 
@@ -62,14 +50,14 @@ export function MemoryPlanPanel({ activeTab, setActiveTab, tripMemory, planVersi
         {activeTab === 'memory' ? (
           <MemoryView tripMemory={tripMemory} />
         ) : (
-          <PlanView planVersion={planVersion} />
+          <PlanView planVersion={planVersion?.version || 1} />
         )}
       </div>
     </div>
   );
 }
 
-function MemoryView({ tripMemory }: { tripMemory: TripMemory }) {
+function MemoryView({ tripMemory }: { tripMemory: TripMemory | null }) {
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 80) return 'text-green-600 bg-green-100';
     if (confidence >= 60) return 'text-yellow-600 bg-yellow-100';
@@ -95,6 +83,16 @@ function MemoryView({ tripMemory }: { tripMemory: TripMemory }) {
     { label: 'Pace', key: 'pace' as const }
   ];
 
+  if (!tripMemory) {
+    return (
+      <div className="p-4">
+        <div className="text-center text-gray-500 text-sm py-8">
+          No trip memory available yet. Start a conversation to build your trip memory.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-4">
       <div className="mb-4">
@@ -102,47 +100,54 @@ function MemoryView({ tripMemory }: { tripMemory: TripMemory }) {
         <p className="text-xs text-gray-500">Extracted from your conversation</p>
       </div>
 
-      {memoryItems.map(({ label, key }) => {
-        const item = tripMemory[key];
-        return (
-          <motion.div
-            key={key}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gray-50 rounded-lg p-4"
-          >
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-gray-600">{label}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 ${getConfidenceColor(item.confidence)}`}>
-                    {getStatusIcon(item.confidence)}
-                    {item.confidence}%
-                  </span>
+      {memoryItems
+        .map(({ label, key }) => {
+          const item = tripMemory[key];
+          return { label, key, item };
+        })
+        .filter(({ item }) => item && item.confidence != null)
+        .map(({ label, key, item }) => {
+          const confidence = item?.confidence ?? 0;
+          
+          return (
+            <motion.div
+              key={key}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gray-50 rounded-lg p-4"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-gray-600">{label}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 ${getConfidenceColor(confidence)}`}>
+                      {getStatusIcon(confidence)}
+                      {confidence}%
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">{item?.value || 'Not specified'}</p>
                 </div>
-                <p className="text-sm font-medium text-gray-900">{item.value}</p>
               </div>
-            </div>
-            
-            {/* Confidence Bar */}
-            <div className="mb-2">
-              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <motion.div
-                  className={`h-full rounded-full ${getConfidenceBarColor(item.confidence)}`}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${item.confidence}%` }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                />
+              
+              {/* Confidence Bar */}
+              <div className="mb-2">
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full rounded-full ${getConfidenceBarColor(confidence)}`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${confidence}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Source */}
-            <button className="text-xs text-blue-600 hover:text-blue-700">
-              View source ({item.sources.length} {item.sources.length === 1 ? 'message' : 'messages'})
-            </button>
-          </motion.div>
-        );
-      })}
+              {/* Source */}
+              <button className="text-xs text-blue-600 hover:text-blue-700">
+                View source ({item?.sources?.length || 0} {(item?.sources?.length || 0) === 1 ? 'message' : 'messages'})
+              </button>
+            </motion.div>
+          );
+        })}
 
       <div className="pt-4 border-t border-gray-200">
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">

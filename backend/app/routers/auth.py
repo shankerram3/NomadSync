@@ -32,7 +32,10 @@ async def register(user_data: UserCreate):
     
     # Create user
     now = datetime.utcnow()
+    # Generate userId first to use for the unique index
+    user_id = str(ObjectId())
     user_doc = {
+        "userId": user_id,
         "email": user_data.email,
         "name": user_data.name,
         "avatar_emoji": user_data.avatar_emoji,

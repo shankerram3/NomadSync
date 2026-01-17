@@ -6,6 +6,7 @@ import { MemoryPlanPanel } from './MemoryPlanPanel';
 import { messagesService, Message } from '../services/messages';
 import { memoryService, TripMemory } from '../services/memory';
 import { planService, PlanVersion } from '../services/plan';
+import { conflictsService } from '../services/conflicts';
 
 export function TripPlanner() {
   const { id } = useParams<{ id: string }>();
