@@ -128,6 +128,55 @@ Frontend will run on `http://localhost:5173` and connect to backend at `http://l
 
 1. **Implement conflict fetching** - Currently conflicts are not fully loaded
 2. **Add real-time updates** - Consider WebSocket for live message updates
-3. **Agent integration** - Connect to AI agent for automatic plan generation
+3. **Agent integration** - Connect to the LangGraph agent for automatic plan generation
 4. **Image uploads** - Add trip cover image upload functionality
 5. **Member management** - Full user lookup and avatar display
+
+## LangGraph Agent Workflow (OpenAI)
+
+NomadSync includes a LangGraph-powered workflow for agentic trip planning. The workflow parses intent, plans tasks, requests critical clarifications, executes tasks, and synthesizes a response. It uses the OpenAI API for structured parsing and response synthesis.
+
+### Backend Setup
+
+1. **Install dependencies** (already listed in `backend/requirements.txt`):
+```bash
+pip install -r backend/requirements.txt
+```
+
+2. **Configure environment variables** in `backend/.env`:
+```env
+OPENAI_API_KEY=your-openai-key
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+### API Endpoint
+
+`POST /agents/plan`
+
+**Request body:**
+```json
+{
+  "message": "Plan my trip from Tempe to SF Jan 12-14 for 4 people.",
+  "trip_context": {},
+  "trip_memory": {
+    "group_size": 4
+  }
+}
+```
+
+**Response shape:**
+```json
+{
+  "clarification": null,
+  "response": "Natural-language response from the agent.",
+  "intent": { "destinations": ["San Francisco"], "...": "..." },
+  "task_plan": { "tasks": [ "..."] },
+  "completed_tasks": { "search_flights": { "status": "not_implemented" } }
+}
+```
+
+### Where to Extend
+
+- **Tool integrations**: Replace the placeholders in `backend/app/agents/langgraph_workflow.py` (`execute_single_task`) with calls to real providers (flight search, hotels, weather, etc.).
+- **Memory persistence**: Pipe `trip_memory` from the `/memory` endpoints into the agent request, then write back updates after the agent completes.
+- **Frontend wiring**: Call `/agents/plan` from the chat UI and render `clarification` immediately when present. Persist `response` into `/messages`.

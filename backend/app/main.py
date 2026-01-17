@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import auth, trips, messages, conflicts, plan, memory
+from app.routers import auth, trips, messages, conflicts, plan, memory, agent
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.include_router(messages.router)
 app.include_router(conflicts.router)
 app.include_router(plan.router)
 app.include_router(memory.router)
+app.include_router(agent.router)
 
 
 @app.get("/")

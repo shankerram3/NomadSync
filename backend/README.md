@@ -65,6 +65,9 @@ Once the server is running, visit:
 - `GET /trips/{trip_id}/memory` - Get trip memory
 - `PATCH /trips/{trip_id}/memory` - Update trip memory
 
+### Agents
+- `POST /agents/plan` - Run LangGraph agent workflow for trip planning
+
 ## Authentication
 
 Most endpoints require authentication. Include the access token in the Authorization header:
