@@ -7,6 +7,21 @@ A modern, AI-powered collaborative travel planning application that helps groups
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.128.0-009688?logo=fastapi)
 ![MongoDB](https://img.shields.io/badge/MongoDB-4.16.0-47A248?logo=mongodb)
 
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Implementation Status](#-implementation-status)
+- [Tech Stack](#️-tech-stack)
+- [Project Structure](#-project-structure)
+- [Getting Started](#-getting-started)
+- [API Documentation](#-api-documentation)
+- [LangGraph Agent Workflow](#-langgraph-agent-workflow)
+- [Architecture](#-architecture)
+- [Database Schema](#️-database-schema)
+- [Missing Features & Future Implementations](#-missing-features--future-implementations)
+- [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
+
 ## 🎯 Features
 
 - **User Authentication**: Secure JWT-based authentication with refresh tokens
@@ -18,6 +33,88 @@ A modern, AI-powered collaborative travel planning application that helps groups
 - **LangGraph Agent**: AI-powered trip planning workflow with OpenAI integration
 - **Modern UI**: Beautiful, responsive interface built with Tailwind CSS and Framer Motion
 - **Role-Based Access**: Trip members with different permission levels
+
+## ✅ Implementation Status
+
+### Fully Implemented ✅
+
+#### Backend
+- ✅ User authentication (register, login, refresh tokens)
+- ✅ JWT token management with access/refresh tokens
+- ✅ Trip CRUD operations (create, read, update)
+- ✅ Trip member management and invitations
+- ✅ Message creation and retrieval
+- ✅ Conflict creation and voting system
+- ✅ Plan versioning (create, read, list versions)
+- ✅ Trip memory storage and updates
+- ✅ LangGraph workflow orchestration
+- ✅ OpenAI intent parsing (structured JSON extraction)
+- ✅ Task planning with dependencies and priorities
+- ✅ Response synthesis using OpenAI
+- ✅ MongoDB database integration
+- ✅ API documentation (Swagger/ReDoc)
+- ✅ CORS configuration
+- ✅ Error handling and validation
+
+#### Frontend
+- ✅ User registration and login UI
+- ✅ Protected routes with authentication guards
+- ✅ Trip listing page with search and filters
+- ✅ Trip creation interface
+- ✅ Trip planner main interface
+- ✅ Chat panel for messages
+- ✅ Memory and plan viewing panels
+- ✅ Conflict voting UI
+- ✅ Authentication context and state management
+- ✅ API service layer (auth, trips, messages, conflicts, plan, memory)
+- ✅ Centralized API client with token management
+- ✅ Automatic token refresh on 401 errors
+- ✅ Error handling and user feedback
+- ✅ Responsive design with Tailwind CSS
+- ✅ Animations with Framer Motion
+
+### Partially Implemented ⚠️
+
+#### Backend
+- ⚠️ **Agent Tool Execution**: Framework exists but all tools return "not_implemented"
+  - Task planning and orchestration: ✅ Complete
+  - Tool execution: ❌ Placeholder only
+  - Tool integrations: ❌ Not connected to real APIs
+
+#### Frontend
+- ⚠️ **Agent Integration**: Backend endpoint exists but not wired to chat UI
+  - Agent endpoint: ✅ Available at `/agents/plan`
+  - Chat integration: ❌ Not calling agent endpoint
+  - Agent response display: ❌ Not rendering agent responses
+  - Clarification handling: ❌ Not implemented
+
+### Not Implemented ❌
+
+#### Backend
+- ❌ Real-time updates (WebSocket)
+- ❌ File/image upload functionality
+- ❌ Email notifications
+- ❌ User profile management
+- ❌ Password reset functionality
+- ❌ Trip sharing via public links
+- ❌ Advanced search and filtering
+- ❌ Analytics and usage tracking
+- ❌ Rate limiting
+- ❌ Caching layer
+- ❌ Background job processing
+- ❌ Export functionality (PDF, JSON)
+
+#### Frontend
+- ❌ Real-time message updates
+- ❌ Image upload for trip covers
+- ❌ User profile pages
+- ❌ Password reset UI
+- ❌ Trip sharing interface
+- ❌ Advanced filtering UI
+- ❌ Export/download functionality
+- ❌ Mobile app (React Native)
+- ❌ Offline support
+- ❌ Push notifications
 
 ## 🛠️ Tech Stack
 
@@ -49,21 +146,60 @@ NomadSync/
 ├── backend/                 # FastAPI backend
 │   ├── app/
 │   │   ├── agents/         # LangGraph agent workflow
+│   │   │   ├── __init__.py
+│   │   │   └── langgraph_workflow.py  # Main agent workflow
 │   │   ├── models/         # Pydantic models
+│   │   │   ├── user.py
+│   │   │   ├── trip.py
+│   │   │   ├── message.py
+│   │   │   ├── conflict.py
+│   │   │   ├── plan.py
+│   │   │   └── memory.py
 │   │   ├── routers/        # API route handlers
+│   │   │   ├── auth.py
+│   │   │   ├── trips.py
+│   │   │   ├── messages.py
+│   │   │   ├── conflicts.py
+│   │   │   ├── plan.py
+│   │   │   ├── memory.py
+│   │   │   └── agent.py    # Agent workflow endpoint
 │   │   ├── utils/          # Utility functions
-│   │   ├── config.py       # Configuration
+│   │   │   ├── auth.py     # JWT and password hashing
+│   │   │   └── trip_permissions.py
+│   │   ├── config.py       # Configuration and settings
 │   │   ├── database.py     # MongoDB connection
-│   │   └── main.py         # FastAPI app
+│   │   └── main.py         # FastAPI app entry point
 │   ├── requirements.txt    # Python dependencies
 │   └── run.sh              # Server startup script
 ├── src/                    # React frontend
 │   ├── components/         # React components
-│   ├── contexts/           # React contexts (Auth)
+│   │   ├── LoginPage.tsx
+│   │   ├── TripsPage.tsx
+│   │   ├── TripPlanner.tsx
+│   │   ├── ChatPanel.tsx
+│   │   ├── MemoryPlanPanel.tsx
+│   │   ├── TripSidebar.tsx
+│   │   ├── ProtectedRoute.tsx
+│   │   └── ui/             # Shadcn UI components
+│   ├── contexts/           # React contexts
+│   │   └── AuthContext.tsx
 │   ├── services/           # API service layer
-│   ├── lib/                # Utilities (API client)
-│   └── styles/             # Global styles
+│   │   ├── auth.ts
+│   │   ├── trips.ts
+│   │   ├── messages.ts
+│   │   ├── conflicts.ts
+│   │   ├── plan.ts
+│   │   └── memory.ts
+│   ├── lib/                # Utilities
+│   │   ├── api.ts          # Centralized API client
+│   │   └── auth-tokens.ts  # Token storage helpers
+│   ├── styles/             # Global styles
+│   │   └── globals.css
+│   ├── App.tsx             # Main app component
+│   └── main.tsx            # Entry point
 ├── package.json            # Node dependencies
+├── vite.config.ts          # Vite configuration
+├── tailwind.config.js      # Tailwind configuration
 └── README.md              # This file
 ```
 
@@ -173,38 +309,46 @@ Frontend will be available at `http://localhost:5173`
 ## 📡 API Endpoints
 
 ### Authentication
-- `POST /auth/register` - Register new user
-- `POST /auth/login` - Login (returns access + refresh tokens)
-- `POST /auth/refresh` - Refresh access token
-- `GET /auth/me` - Get current user info
+- `POST /auth/register` - Register new user ✅
+- `POST /auth/login` - Login (returns access + refresh tokens) ✅
+- `POST /auth/refresh` - Refresh access token ✅
+- `GET /auth/me` - Get current user info ✅
 
 ### Trips
-- `GET /trips` - List user's trips
-- `POST /trips` - Create new trip
-- `GET /trips/{trip_id}` - Get trip details
-- `PATCH /trips/{trip_id}` - Update trip
-- `POST /trips/{trip_id}/invite` - Invite member to trip
+- `GET /trips` - List user's trips ✅
+- `POST /trips` - Create new trip ✅
+- `GET /trips/{trip_id}` - Get trip details ✅
+- `PATCH /trips/{trip_id}` - Update trip ✅
+- `POST /trips/{trip_id}/invite` - Invite member to trip ✅
+- `DELETE /trips/{trip_id}` - Delete trip ❌
+- `GET /trips/{trip_id}/members` - List trip members ❌
+- `DELETE /trips/{trip_id}/members/{user_id}` - Remove member ❌
 
 ### Messages
-- `GET /trips/{trip_id}/messages` - Get messages for a trip
-- `POST /trips/{trip_id}/messages` - Create new message
+- `GET /trips/{trip_id}/messages` - Get messages for a trip ✅
+- `POST /trips/{trip_id}/messages` - Create new message ✅
+- `DELETE /trips/{trip_id}/messages/{message_id}` - Delete message ❌
+- `PATCH /trips/{trip_id}/messages/{message_id}` - Edit message ❌
 
 ### Conflicts
-- `POST /trips/{trip_id}/conflicts` - Create conflict
-- `POST /trips/{trip_id}/conflicts/{conflict_id}/vote` - Vote on conflict option
-- `GET /trips/{trip_id}/conflicts/{conflict_id}` - Get conflict details
+- `POST /trips/{trip_id}/conflicts` - Create conflict ✅
+- `POST /trips/{trip_id}/conflicts/{conflict_id}/vote` - Vote on conflict option ✅
+- `GET /trips/{trip_id}/conflicts/{conflict_id}` - Get conflict details ✅
+- `GET /trips/{trip_id}/conflicts` - List all conflicts ❌
+- `DELETE /trips/{trip_id}/conflicts/{conflict_id}` - Resolve/delete conflict ❌
 
 ### Plan
-- `GET /trips/{trip_id}/plan` - Get plan (latest or specific version)
-- `POST /trips/{trip_id}/plan` - Create new plan version
-- `GET /trips/{trip_id}/plan/versions` - List all plan versions
+- `GET /trips/{trip_id}/plan` - Get plan (latest or specific version) ✅
+- `POST /trips/{trip_id}/plan` - Create new plan version ✅
+- `GET /trips/{trip_id}/plan/versions` - List all plan versions ✅
+- `DELETE /trips/{trip_id}/plan/versions/{version_id}` - Delete plan version ❌
 
 ### Memory
-- `GET /trips/{trip_id}/memory` - Get trip memory
-- `PATCH /trips/{trip_id}/memory` - Update trip memory
+- `GET /trips/{trip_id}/memory` - Get trip memory ✅
+- `PATCH /trips/{trip_id}/memory` - Update trip memory ✅
 
 ### Agents
-- `POST /agents/plan` - Run LangGraph agent workflow for trip planning
+- `POST /agents/plan` - Run LangGraph agent workflow for trip planning ✅ (backend only, not integrated in frontend)
 
 **Note**: Most endpoints require authentication. Include the access token in the Authorization header:
 ```
@@ -214,6 +358,72 @@ Authorization: Bearer <access_token>
 ## 🤖 LangGraph Agent Workflow
 
 NomadSync includes a LangGraph-powered workflow for agentic trip planning. The workflow parses intent, plans tasks, requests critical clarifications, executes tasks, and synthesizes a response. It uses the OpenAI API for structured parsing and response synthesis.
+
+### Workflow Architecture
+
+The agent follows this workflow:
+
+1. **Parse Intent** → Extract structured trip details from user message
+2. **Create Task Plan** → Generate ordered task list with dependencies
+3. **Check Clarification** → Determine if critical info is missing
+4. **Execute Task Plan** → Run tools in priority order (if no clarification needed)
+5. **Synthesize Response** → Generate natural language response
+
+### Tool Definitions
+
+The agent defines 5 tool actions (currently all return "not_implemented"):
+
+#### 1. Flight Search (`search_flights`)
+- **Status**: ❌ Not implemented (placeholder only)
+- **Parameters**: `origin`, `destination`, `departure_date`, `return_date`, `passengers`
+- **Priority**: 1
+- **Dependencies**: None
+- **Suggested APIs**: Amadeus, Skyscanner, Google Flights API
+
+#### 2. Hotel Search (`search_hotels`)
+- **Status**: ❌ Not implemented (placeholder only)
+- **Parameters**: `destination`, `checkin`, `checkout`, `guests`, `rooms`
+- **Priority**: 1
+- **Dependencies**: None
+- **Suggested APIs**: Booking.com API, Hotels.com API, Expedia API
+
+#### 3. Weather Forecast (`get_weather_forecast`)
+- **Status**: ❌ Not implemented (placeholder only)
+- **Parameters**: `destination`, `start_date`, `end_date`
+- **Priority**: 1
+- **Dependencies**: None (but `search_attractions` depends on it)
+- **Suggested APIs**: OpenWeatherMap, WeatherAPI, AccuWeather
+
+#### 4. Attraction Search (`search_attractions`)
+- **Status**: ❌ Not implemented (placeholder only)
+- **Parameters**: `destination`, `interests`, `days`
+- **Priority**: 2
+- **Dependencies**: `get_weather` (needs weather data first)
+- **Suggested APIs**: Google Places API, TripAdvisor API, Yelp API
+
+#### 5. Day Plan Creation (`create_day_plan`)
+- **Status**: ❌ Not implemented (placeholder only)
+- **Parameters**: `day_number`, `destination`, `date`
+- **Priority**: 3
+- **Dependencies**: `search_attractions` (needs attractions first)
+- **Implementation**: Should use AI to create daily itinerary from attractions
+
+### Current Implementation
+
+**What Works:**
+- ✅ Intent parsing with OpenAI structured output
+- ✅ Task planning with priority and dependency resolution
+- ✅ Clarification detection and messaging
+- ✅ Workflow orchestration with LangGraph
+- ✅ Response synthesis with OpenAI
+
+**What's Missing:**
+- ❌ All tool implementations (all return "not_implemented")
+- ❌ Frontend integration (agent endpoint not called from chat)
+- ❌ Real-time agent response streaming
+- ❌ Memory persistence after agent runs
+- ❌ Error handling for tool failures
+- ❌ Tool result caching
 
 ### Setup
 
@@ -254,11 +464,367 @@ OPENAI_MODEL=gpt-4.1-mini
 }
 ```
 
-### Extending the Agent
+### Implementation Location
 
-- **Tool integrations**: Replace the placeholders in `backend/app/agents/langgraph_workflow.py` (`execute_single_task`) with calls to real providers (flight search, hotels, weather, etc.).
-- **Memory persistence**: Pipe `trip_memory` from the `/memory` endpoints into the agent request, then write back updates after the agent completes.
-- **Frontend wiring**: Call `/agents/plan` from the chat UI and render `clarification` immediately when present. Persist `response` into `/messages`.
+Tool execution happens in `backend/app/agents/langgraph_workflow.py`:
+
+```python
+async def execute_single_task(task: TaskPlan.Task, context: Dict[str, Any]) -> Any:
+    # TODO: Implement actual tool calls
+    # Currently returns placeholder for all tools
+    return {
+        "status": "not_implemented",
+        "message": "Connect this action to a provider or internal service."
+    }
+```
+
+## 🏗️ Architecture
+
+### Backend Architecture
+
+#### Request Flow
+1. Client sends HTTP request → FastAPI router
+2. Router validates request → Pydantic models
+3. Router checks authentication → JWT token validation
+4. Router checks permissions → Trip access validation
+5. Router executes business logic → Database operations
+6. Router returns response → JSON serialization
+
+#### Authentication Flow
+1. User registers/logs in → Backend validates credentials
+2. Backend generates JWT tokens → Access token (short-lived) + Refresh token (long-lived)
+3. Tokens returned to client → Stored in localStorage
+4. Subsequent requests include token → `Authorization: Bearer <token>` header
+5. Token expires → Client uses refresh token to get new access token
+
+#### Database Layer
+- **Motor** (async MongoDB driver) for database operations
+- **Pydantic** models for data validation and serialization
+- **ObjectId** conversion for MongoDB document IDs
+- Collections: `users`, `trips`, `messages`, `conflicts`, `plan_versions`, `trip_memory`
+
+### Frontend Architecture
+
+#### Component Hierarchy
+```
+App
+├── AuthProvider (Context)
+│   └── Router
+│       ├── LoginPage
+│       └── ProtectedRoute
+│           ├── TripsPage
+│           └── TripPlanner
+│               ├── TripSidebar
+│               ├── ChatPanel
+│               └── MemoryPlanPanel
+```
+
+#### State Management
+- **AuthContext**: Global authentication state
+- **Component State**: Local state with React hooks
+- **API Service Layer**: Abstraction over HTTP requests
+- **Token Storage**: localStorage via `auth-tokens.ts`
+
+#### Data Flow
+
+**Trips Page:**
+1. Component mounts → `useEffect` triggers
+2. Calls `tripsService.getAll()` → API request
+3. API client adds auth token → Automatic header injection
+4. Backend validates and returns data → JSON response
+5. Component updates state → UI re-renders
+
+**Trip Planner:**
+1. Component mounts with trip ID → `useParams` hook
+2. Parallel data fetching → `Promise.all([messages, memory, plan])`
+3. Data loaded → State updated
+4. User sends message → `messagesService.create()`
+5. Message added to local state → Optimistic update
+6. TODO: Trigger agent → Not yet implemented
+
+**Error Handling:**
+- API errors caught in try/catch blocks
+- 401 errors trigger token refresh or logout
+- User-friendly error messages displayed
+- Network errors show retry options
+
+## 🗄️ Database Schema
+
+### Collections
+
+#### users
+```javascript
+{
+  _id: ObjectId,
+  email: String (unique, indexed),
+  hashed_password: String,
+  name: String (optional),
+  avatar_emoji: String (optional),
+  created_at: DateTime,
+  updated_at: DateTime
+}
+```
+
+#### trips
+```javascript
+{
+  _id: ObjectId,
+  title: String,
+  destination: String (optional),
+  dates: {
+    start: DateTime (optional),
+    end: DateTime (optional)
+  },
+  status: String ("draft" | "planned" | "completed"),
+  members: [{
+    userId: ObjectId,
+    role: String ("owner" | "member"),
+    joinedAt: DateTime
+  }],
+  created_by: ObjectId (ref: users),
+  created_at: DateTime,
+  updated_at: DateTime
+}
+```
+
+#### messages
+```javascript
+{
+  _id: ObjectId,
+  tripId: ObjectId (ref: trips),
+  authorId: ObjectId (ref: users, optional),
+  type: String ("human" | "agent" | "conflict"),
+  content: String,
+  summary: String (optional),
+  questions: [String] (optional),
+  conflictId: ObjectId (ref: conflicts, optional),
+  hasViewPlan: Boolean,
+  createdAt: DateTime
+}
+```
+
+#### conflicts
+```javascript
+{
+  _id: ObjectId,
+  tripId: ObjectId (ref: trips),
+  question: String,
+  options: [{
+    key: String,
+    label: String,
+    votes: [ObjectId] (ref: users)
+  }],
+  created_by: ObjectId (ref: users),
+  created_at: DateTime,
+  resolved_at: DateTime (optional)
+}
+```
+
+#### plan_versions
+```javascript
+{
+  _id: ObjectId,
+  tripId: ObjectId (ref: trips),
+  version: Number,
+  itinerary: Object (flexible structure),
+  created_by: String ("agent" | userId),
+  created_at: DateTime
+}
+```
+
+#### trip_memory
+```javascript
+{
+  _id: ObjectId,
+  tripId: ObjectId (ref: trips, unique),
+  preferences: Object (flexible structure),
+  decisions: [Object],
+  extracted_at: DateTime,
+  updated_at: DateTime
+}
+```
+
+## ❌ Missing Features & Future Implementations
+
+### High Priority 🔴
+
+#### 1. Agent Tool Implementations
+**Status**: Framework complete, implementations missing
+
+**Required:**
+- [ ] Flight search API integration (Amadeus/Skyscanner)
+- [ ] Hotel search API integration (Booking.com/Expedia)
+- [ ] Weather API integration (OpenWeatherMap)
+- [ ] Attractions API integration (Google Places/TripAdvisor)
+- [ ] Day plan generation using AI from attractions
+- [ ] Error handling for API failures
+- [ ] Rate limiting for external APIs
+- [ ] Caching for API responses
+
+**Implementation Location**: `backend/app/agents/langgraph_workflow.py` → `execute_single_task()`
+
+#### 2. Frontend Agent Integration
+**Status**: Backend ready, frontend not connected
+
+**Required:**
+- [ ] Call `/agents/plan` from chat UI when user sends message
+- [ ] Display agent responses in chat
+- [ ] Handle clarification requests from agent
+- [ ] Show agent thinking/loading state
+- [ ] Persist agent responses to messages
+- [ ] Update trip memory after agent runs
+- [ ] Stream agent responses (if supported)
+
+**Implementation Location**: `src/components/TripPlanner.tsx` → `handleSendMessage()`
+
+#### 3. Real-Time Updates
+**Status**: Not implemented
+
+**Required:**
+- [ ] WebSocket server setup (FastAPI WebSocket)
+- [ ] WebSocket client in React
+- [ ] Real-time message updates
+- [ ] Real-time conflict vote updates
+- [ ] Presence indicators (who's online)
+- [ ] Typing indicators
+
+**Suggested Stack**: FastAPI WebSocket + Socket.io or native WebSocket
+
+### Medium Priority 🟡
+
+#### 4. File Upload
+**Status**: Not implemented
+
+**Required:**
+- [ ] Image upload endpoint (trip covers, user avatars)
+- [ ] File storage (local/S3/Cloudinary)
+- [ ] Image optimization and resizing
+- [ ] Frontend upload UI
+- [ ] Progress indicators
+
+#### 5. User Profiles
+**Status**: Basic user model exists, profile features missing
+
+**Required:**
+- [ ] User profile page
+- [ ] Avatar upload and display
+- [ ] Profile editing
+- [ ] User preferences
+- [ ] Activity history
+
+#### 6. Password Reset
+**Status**: Not implemented
+
+**Required:**
+- [ ] Password reset request endpoint
+- [ ] Email sending (SMTP/SendGrid)
+- [ ] Reset token generation
+- [ ] Password reset UI
+- [ ] Token expiration handling
+
+#### 7. Trip Sharing
+**Status**: Not implemented
+
+**Required:**
+- [ ] Public trip link generation
+- [ ] Shareable link with read-only access
+- [ ] Link expiration
+- [ ] Share UI component
+- [ ] Access control for shared trips
+
+#### 8. Advanced Search & Filtering
+**Status**: Basic trip listing exists
+
+**Required:**
+- [ ] Full-text search for trips
+- [ ] Advanced filters (date range, status, members)
+- [ ] Sorting options
+- [ ] Pagination
+- [ ] Search UI components
+
+### Low Priority 🟢
+
+#### 9. Email Notifications
+**Status**: Not implemented
+
+**Required:**
+- [ ] Email service integration
+- [ ] Notification preferences
+- [ ] Trip invitation emails
+- [ ] Message notification emails
+- [ ] Conflict resolution notifications
+
+#### 10. Export Functionality
+**Status**: Not implemented
+
+**Required:**
+- [ ] PDF export for trip plans
+- [ ] JSON export for trip data
+- [ ] Calendar export (iCal)
+- [ ] Export UI
+
+#### 11. Analytics & Tracking
+**Status**: Not implemented
+
+**Required:**
+- [ ] Usage analytics
+- [ ] Error tracking (Sentry)
+- [ ] Performance monitoring
+- [ ] User behavior tracking
+
+#### 12. Mobile App
+**Status**: Not implemented
+
+**Required:**
+- [ ] React Native app
+- [ ] Mobile-optimized UI
+- [ ] Push notifications
+- [ ] Offline support
+- [ ] App store deployment
+
+### Technical Debt 🔧
+
+#### 13. Testing
+**Status**: Not implemented
+
+**Required:**
+- [ ] Unit tests for backend (pytest)
+- [ ] Integration tests for API
+- [ ] Frontend component tests (React Testing Library)
+- [ ] E2E tests (Playwright/Cypress)
+- [ ] CI/CD pipeline
+
+#### 14. Performance Optimization
+**Status**: Basic implementation
+
+**Required:**
+- [ ] Database query optimization
+- [ ] API response caching (Redis)
+- [ ] Frontend code splitting
+- [ ] Image lazy loading
+- [ ] API rate limiting
+
+#### 15. Security Enhancements
+**Status**: Basic security implemented
+
+**Required:**
+- [ ] Rate limiting per user/IP
+- [ ] Input sanitization
+- [ ] SQL injection prevention (already using parameterized queries)
+- [ ] XSS protection
+- [ ] CSRF tokens
+- [ ] Security headers
+- [ ] Audit logging
+
+#### 16. Documentation
+**Status**: Basic README exists
+
+**Required:**
+- [ ] API documentation improvements
+- [ ] Architecture diagrams
+- [ ] Deployment guides
+- [ ] Contributing guidelines
+- [ ] Code comments and docstrings
 
 ## 🔐 Authentication Flow
 
@@ -267,76 +833,6 @@ OPENAI_MODEL=gpt-4.1-mini
 3. Tokens are stored in localStorage
 4. All API requests include the token in the Authorization header
 5. Tokens are automatically refreshed when expired
-
-## 🗄️ Database Schema
-
-MongoDB collections:
-
-- **users** - User accounts with email, hashed password, name
-- **trips** - Trip documents with title, destination, dates, members
-- **messages** - Chat messages with type (human/agent), content, timestamp
-- **conflicts** - Conflict resolution with options and votes
-- **plan_versions** - Versioned trip plans with itinerary
-- **trip_memory** - AI-extracted trip preferences and decisions
-
-## 🎨 Frontend Architecture
-
-### Components
-- **LoginPage** - Authentication UI
-- **TripsPage** - Trip listing and creation
-- **TripPlanner** - Main planning interface
-- **ChatPanel** - Message display and input
-- **MemoryPlanPanel** - Memory and plan views
-- **TripSidebar** - Navigation sidebar
-- **ProtectedRoute** - Route guard for authentication
-
-### Architecture
-
-#### API Client (`src/lib/api.ts`)
-- Centralized HTTP client with automatic token management
-- Handles authentication headers
-- Manages token storage in localStorage
-- Base URL configurable via `VITE_API_URL` environment variable
-
-#### Service Layer (`src/services/`)
-- **auth.ts**: Authentication (login, register, refresh token)
-- **trips.ts**: Trip CRUD operations
-- **messages.ts**: Chat message operations
-- **conflicts.ts**: Conflict resolution and voting
-- **plan.ts**: Trip plan versioning
-- **memory.ts**: AI-extracted trip memory
-
-#### Authentication Context (`src/contexts/AuthContext.tsx`)
-- Provides authentication state throughout the app
-- Manages user session
-- Handles login/logout
-- Protected routes check authentication status
-
-### Data Flow
-
-#### Trips Page
-- Fetches trips on mount: `tripsService.getAll()`
-- Creates new trip: `tripsService.create()`
-- Displays trip cards with real data from API
-
-#### Trip Planner
-- Loads trip data on mount:
-  - Messages: `messagesService.getByTrip(tripId)`
-  - Memory: `memoryService.get(tripId)`
-  - Plan: `planService.get(tripId)`
-- Sends messages: `messagesService.create(tripId, data)`
-- Updates memory/plan as user interacts
-
-#### Error Handling
-- API errors are caught and displayed to users
-- 401 errors automatically clear tokens and redirect to login
-- Network errors show user-friendly messages
-
-#### Token Management
-- Access tokens stored in localStorage
-- Refresh tokens used to get new access tokens
-- Tokens automatically included in API requests
-- Logout clears all tokens
 
 ## 🔧 Development
 
@@ -431,18 +927,6 @@ This should be resolved with `bcrypt<5.0.0` in requirements.txt. If you see warn
 
 ### Frontend (.env)
 - `VITE_API_URL` - Backend API URL (default: `http://localhost:8000`)
-
-## 🚧 Roadmap
-
-- [ ] Real-time message updates (WebSocket)
-- [ ] Complete agent integration in chat UI
-- [ ] Tool integrations for flights, hotels, weather APIs
-- [ ] Image upload for trip covers
-- [ ] User avatars and profiles
-- [ ] Email notifications
-- [ ] Trip sharing via links
-- [ ] Mobile app (React Native)
-- [ ] Advanced conflict resolution features
 
 ## 📄 License
 
