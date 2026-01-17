@@ -1,11 +1,13 @@
-import { Users, UserPlus, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Loader2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 interface TripSidebarProps {
   isAgentThinking: boolean;
 }
 
 export function TripSidebar({ isAgentThinking }: TripSidebarProps) {
+  const navigate = useNavigate();
   const members = [
     { name: 'Sarah', avatar: '👩', online: true },
     { name: 'Mike', avatar: '👨', online: true },
@@ -18,7 +20,14 @@ export function TripSidebar({ isAgentThinking }: TripSidebarProps) {
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Trip Header */}
       <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => navigate('/trips')}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            title="Back to trips"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-600" />
+          </button>
           <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">
             Draft
           </span>
