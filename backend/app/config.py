@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Any
 from pydantic import field_validator
+import json
 
 
 class Settings(BaseSettings):
@@ -16,15 +17,43 @@ class Settings(BaseSettings):
     
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, v):
+    def parse_cors_origins(cls, v: Any) -> Any:
+        """Parse cors_origins from various formats (JSON, comma-separated, list, or empty)"""
+        # Handle None, empty string, or empty value
+        if v is None or v == "":
+            return ["http://localhost:5173", "http://localhost:3000"]
+        
+        # Already a list
+        if isinstance(v, list):
+            return v
+        
+        # Handle string input
         if isinstance(v, str):
+            # Strip whitespace first
+            v = v.strip()
+            
+            # Handle empty or whitespace-only string after stripping
+            if not v:
+                return ["http://localhost:5173", "http://localhost:3000"]
+            
+            # Try to parse as JSON first (for env vars that might be JSON arrays)
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, ValueError, TypeError):
+                pass
+            
             # Handle comma-separated string
             if "," in v:
-                return [origin.strip() for origin in v.split(",")]
+                origins = [origin.strip() for origin in v.split(",") if origin.strip()]
+                return origins if origins else ["http://localhost:5173", "http://localhost:3000"]
+            
             # Handle single string
-            return [v.strip()]
-        # Already a list or other type
-        return v
+            return [v]
+        
+        # Fallback to default
+        return ["http://localhost:5173", "http://localhost:3000"]
     
     class Config:
         env_file = ".env"
