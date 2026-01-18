@@ -92,14 +92,10 @@ export function TripPlanner() {
 
         // Handle clarification if needed
         if (agentResponse.clarification) {
-          const clarificationMessage: Message = {
-            id: `clarification-${Date.now()}`,
-            trip_id: id,
+          const clarificationMessage = await messagesService.create(id, {
             type: 'agent',
             content: agentResponse.clarification,
-            created_at: new Date().toISOString(),
-            has_view_plan: false,
-          };
+          });
           setMessages(prev => [...prev, clarificationMessage]);
           setIsAgentThinking(false);
           return;

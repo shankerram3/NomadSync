@@ -53,7 +53,8 @@ async def run_agent_workflow(payload: AgentRequest) -> AgentResponse:
 
     # Auto-update trip memory from intent if trip_id is provided
     if payload.trip_id and intent:
-        await _update_memory_from_intent(payload.trip_id, intent, payload.message)
+        # Use message text as a reference for sources (could be enhanced with actual message ID)
+        await _update_memory_from_intent(payload.trip_id, intent, payload.message[:50])
 
     # Auto-generate plan from task execution if trip_id is provided and tasks completed
     completed_tasks = final_state.get("completed_tasks", {})
@@ -69,7 +70,7 @@ async def run_agent_workflow(payload: AgentRequest) -> AgentResponse:
     )
 
 
-async def _update_memory_from_intent(trip_id: str, intent: Any, message_id: str):
+async def _update_memory_from_intent(trip_id: str, intent: Any, message_ref: str):
     """Update trip memory from agent intent extraction"""
     try:
         db = get_database()
@@ -81,7 +82,7 @@ async def _update_memory_from_intent(trip_id: str, intent: Any, message_id: str)
             memory_updates["destination"] = {
                 "value": destination_str,
                 "confidence": 80,  # Default confidence for new extractions
-                "sources": [message_id]
+                "sources": [message_ref] if message_ref else []
             }
         
         # Update dates
@@ -98,7 +99,7 @@ async def _update_memory_from_intent(trip_id: str, intent: Any, message_id: str)
                 memory_updates["dates"] = {
                     "value": dates_str,
                     "confidence": 85,
-                    "sources": [message_id]
+                    "sources": [message_ref] if message_ref else []
                 }
         
         # Update duration
@@ -106,7 +107,7 @@ async def _update_memory_from_intent(trip_id: str, intent: Any, message_id: str)
             memory_updates["duration"] = {
                 "value": f"{intent.duration_days} days",
                 "confidence": 80,
-                "sources": [message_id]
+                "sources": [message_ref] if message_ref else []
             }
         
         # Update budget
@@ -114,14 +115,14 @@ async def _update_memory_from_intent(trip_id: str, intent: Any, message_id: str)
             memory_updates["budget"] = {
                 "value": f"${intent.budget_total} total",
                 "confidence": 75,
-                "sources": [message_id]
+                "sources": [message_ref] if message_ref else []
             }
         elif intent.budget_per_person and intent.group_size:
             total = intent.budget_per_person * intent.group_size
             memory_updates["budget"] = {
                 "value": f"${intent.budget_per_person} per person (${total} total)",
                 "confidence": 75,
-                "sources": [message_id]
+                "sources": [message_ref] if message_ref else []
             }
         
         # Update pace (from interests/constraints)
@@ -141,7 +142,7 @@ async def _update_memory_from_intent(trip_id: str, intent: Any, message_id: str)
             memory_updates["pace"] = {
                 "value": pace_value,
                 "confidence": 60,
-                "sources": [message_id]
+                "sources": [message_ref] if message_ref else []
             }
         
         # Update memory in database if there are updates
