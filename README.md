@@ -1240,55 +1240,56 @@ npm test -- --watch
 
 ### Railway Deployment (Recommended)
 
-Railway is recommended for production deployments. Services are deployed separately as independent services.
+Railway is recommended for production deployments. The application uses a **single service** that serves both the frontend (React SPA) and backend (FastAPI) from one container.
 
 #### Prerequisites
 
 1. **Railway Account**: Sign up at [railway.app](https://railway.app)
 2. **GitHub Repository**: Push your code to GitHub
-3. **MongoDB**: Use Railway's MongoDB service or external MongoDB Atlas
+3. **MongoDB Atlas**: 
+   - Create a MongoDB Atlas cluster
+   - **Important**: Configure Network Access to allow `0.0.0.0/0` (all IPs) since Railway uses dynamic IPs
+   - Get your connection string (format: `mongodb+srv://user:pass@cluster.mongodb.net/db`)
 
 #### Deployment Steps
 
-##### 1. Deploy Backend Service
+**Note:** This deployment uses a **single service** that serves both frontend and backend from FastAPI. The `backend/Dockerfile` builds the frontend and serves it alongside the API.
+
+##### 1. Create Railway Service
 
 1. **Create New Service** in Railway dashboard
 2. **Connect GitHub repository** and select branch
 3. **Configure Service**:
-   - **Root Directory**: `backend/`
-   - **Build Command**: (Railway auto-detects from `Dockerfile`)
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Root Directory**: `/` (project root) - **Important!**
+   - Railway will use `railway.json` which points to `backend/Dockerfile`
+   - The Dockerfile automatically builds frontend and serves it via FastAPI
 
 4. **Set Environment Variables**:
    ```bash
-   MONGODB_URI=mongodb://your-mongo-uri
+   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
    MONGODB_DB=nomadsync
    JWT_SECRET=<generate-strong-secret>
    JWT_ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=15
    REFRESH_TOKEN_EXPIRE_DAYS=30
-   CORS_ORIGINS=https://your-frontend-domain.railway.app,http://localhost:5173
+   CORS_ORIGINS=https://your-service.railway.app,http://localhost:5173
    OPENAI_API_KEY=sk-...
    OPENAI_MODEL=gpt-4o-mini
    ```
 
-5. **Deploy**: Railway will auto-deploy on git push
+5. **Configure Public Networking**:
+   - Go to **Settings → Networking → Public Networking**
+   - Click **Generate Service Domain**
+   - Set **Target Port**: Leave blank (auto) or use the port Railway assigns via `$PORT`
+   - Railway will provide a public URL like `your-service.up.railway.app`
 
-##### 2. Deploy Frontend Service
+6. **MongoDB Atlas Network Access** (if using Atlas):
+   - Go to MongoDB Atlas Dashboard → **Network Access**
+   - Click **Add IP Address**
+   - Select **Allow Access from Anywhere** (`0.0.0.0/0`)
+   - This is required because Railway uses dynamic IP addresses
 
-1. **Create New Service** in Railway dashboard
-2. **Connect GitHub repository** (same repo)
-3. **Configure Service**:
-   - **Root Directory**: `/` (project root)
-   - **Build Command**: `npm ci && npm run build`
-   - **Start Command**: (uses `nginx` in Dockerfile)
-
-4. **Set Environment Variables**:
-   ```bash
-   VITE_API_URL=https://your-backend-service.railway.app
-   ```
-
-5. **Deploy**: Railway will auto-deploy on git push
+7. **Deploy**: Railway will auto-deploy on git push
 
 #### Railway Architecture
 
@@ -1296,61 +1297,59 @@ Railway is recommended for production deployments. Services are deployed separat
 ┌─────────────────────────────────────────────────────────┐
 │                   Railway Platform                      │
 │                                                         │
-│  ┌──────────────┐         ┌──────────────┐            │
-│  │   Frontend   │         │   Backend    │            │
-│  │   Service    │         │   Service    │            │
-│  │              │         │              │            │
-│  │ Public URL:  │         │ Public URL:  │            │
-│  │ *.railway.app│         │ *.railway.app│            │
-│  │              │         │              │            │
-│  │ - Nginx      │         │ - FastAPI    │            │
-│  │ - React SPA  │         │ - Uvicorn    │            │
-│  │              │         │ - Port: 8000 │            │
-│  │ Port: 80     │         │              │            │
-│  └──────┬───────┘         └──────┬───────┘            │
-│         │                        │                     │
-│         │ VITE_API_URL           │                     │
-│         │ (Backend Public URL)   │                     │
-│         │                        │                     │
-│         └──────────┬─────────────┘                     │
-│                    │                                    │
-│                    ▼                                    │
-│         ┌──────────────────────┐                       │
-│         │   MongoDB Service    │                       │
-│         │   (Railway or Atlas) │                       │
-│         │                      │                       │
-│         │ - Auto-configured    │                       │
-│         │ - Connection URI     │                       │
-│         │   provided           │                       │
-│         └──────────────────────┘                       │
+│  ┌──────────────────────────────────────────────┐     │
+│  │         Single Service (FastAPI)              │     │
+│  │                                               │     │
+│  │  Public URL: *.railway.app                   │     │
+│  │                                               │     │
+│  │  - FastAPI (Uvicorn)                         │     │
+│  │  - Serves React SPA (static files)           │     │
+│  │  - Handles API routes (/api/*)               │     │
+│  │  - Port: $PORT (Railway assigned)            │     │
+│  │                                               │     │
+│  │  Routes:                                     │     │
+│  │  - / → Frontend (index.html)                 │     │
+│  │  - /api/* → API endpoints                    │     │
+│  │  - /assets/* → Static assets                 │     │
+│  └───────────────┬──────────────────────────────┘     │
+│                  │                                      │
+│                  ▼                                      │
+│         ┌──────────────────────┐                        │
+│         │   MongoDB Atlas     │                        │
+│         │   (External)        │                        │
+│         │                      │                        │
+│         │ - Network Access:    │                        │
+│         │   0.0.0.0/0          │                        │
+│         │ - Connection String │                        │
+│         │   in env vars       │                        │
+│         └──────────────────────┘                        │
 └─────────────────────────────────────────────────────────┘
 ```
 
 **Important Notes:**
-- Frontend connects directly to backend via **public URLs** (not Docker networking)
-- Set `VITE_API_URL` to backend's Railway public URL
-- CORS must include frontend's Railway URL in `CORS_ORIGINS`
-- MongoDB can be Railway's MongoDB service or external Atlas instance
+- **Single service deployment**: Frontend and backend served from one FastAPI service
+- **VITE_API_URL**: Set to `/api` (same origin, no need for full URL)
+- **CORS_ORIGINS**: Include your Railway domain (e.g., `https://your-service.up.railway.app`)
+- **MongoDB Atlas**: Must whitelist `0.0.0.0/0` in Network Access for Railway's dynamic IPs
+- **Root Directory**: Must be set to `/` (project root) in Railway settings
+- **Dockerfile**: Uses `backend/Dockerfile` which builds both frontend and backend
 
 #### Railway Environment Variables
 
-**Backend Service:**
+**Service Environment Variables:**
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `MONGODB_URI` | ✅ | MongoDB connection string | `mongodb://mongo...` |
+| `MONGODB_URI` | ✅ | MongoDB Atlas connection string (use `mongodb+srv://`) | `mongodb+srv://user:pass@cluster.mongodb.net/db` |
 | `MONGODB_DB` | ❌ | Database name | `nomadsync` |
 | `JWT_SECRET` | ✅ | Secret for JWT tokens | `openssl rand -hex 32` |
 | `JWT_ALGORITHM` | ❌ | JWT algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | ❌ | Access token TTL | `15` |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | ❌ | Refresh token TTL | `30` |
-| `CORS_ORIGINS` | ✅ | Allowed origins (comma-separated) | `https://*.railway.app,http://localhost:5173` |
+| `CORS_ORIGINS` | ✅ | Allowed origins (comma-separated or JSON array) | `https://your-service.up.railway.app,http://localhost:5173` |
 | `OPENAI_API_KEY` | ✅ | OpenAI API key | `sk-...` |
 | `OPENAI_MODEL` | ❌ | OpenAI model | `gpt-4o-mini` |
 
-**Frontend Service:**
-| Variable | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `VITE_API_URL` | ✅ | Backend API public URL | `https://backend-xxx.railway.app` |
+**Note:** `VITE_API_URL` is set to `/api` in the Dockerfile build, so no environment variable needed (frontend and backend are served from the same origin).
 
 ### Docker Production Build (Local/Private Server)
 
@@ -1495,6 +1494,58 @@ docker-compose up --build
 # Solution: Check email/password are correct
 # Check backend logs for error details
 ```
+
+#### Railway Deployment Issues
+
+**Problem**: MongoDB Atlas SSL handshake failed
+```
+Error: SSL handshake failed: [SSL: TLSV1_ALERT_INTERNAL_ERROR]
+```
+**Solution**: 
+1. Go to MongoDB Atlas Dashboard → **Network Access**
+2. Click **Add IP Address**
+3. Select **Allow Access from Anywhere** (`0.0.0.0/0`)
+4. Railway uses dynamic IP addresses, so you must allow all IPs
+5. Wait a few minutes for changes to propagate
+
+**Problem**: `405 Method Not Allowed` on API calls
+```
+POST /api/api/auth/register HTTP/1.1" 405
+```
+**Solution**: 
+- This indicates a double `/api` prefix
+- Check that `VITE_API_URL` is set to `/api` (not `/api/api`)
+- The frontend `ApiClient` should normalize endpoints automatically
+- Verify in browser console that API calls use correct paths
+
+**Problem**: `cors_origins` parsing error on startup
+```
+pydantic_settings.exceptions.SettingsError: error parsing value for field "cors_origins"
+```
+**Solution**:
+- `CORS_ORIGINS` can be set as:
+  - Comma-separated: `https://domain1.com,https://domain2.com`
+  - JSON array: `["https://domain1.com","https://domain2.com"]`
+  - Single string: `https://domain1.com`
+- The validator handles all formats automatically
+- Ensure no trailing commas or invalid JSON
+
+**Problem**: Docker build fails with "not found" errors
+```
+failed to compute cache key: failed to calculate checksum of ref ... "/src": not found
+```
+**Solution**:
+1. Ensure **Root Directory** in Railway is set to `/` (project root)
+2. Check `.dockerignore` doesn't exclude necessary directories
+3. Verify `railway.json` points to correct Dockerfile path
+4. The Dockerfile should use relative paths from project root
+
+**Problem**: Frontend not loading on Railway
+**Solution**:
+- Verify the Dockerfile builds frontend in the `frontend-builder` stage
+- Check that static files are copied to `./static` in the backend stage
+- Ensure FastAPI serves static files from `/` route
+- Check Railway logs for build errors
 
 ### Debugging Tips
 
