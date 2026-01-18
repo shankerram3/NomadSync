@@ -14,6 +14,25 @@ class ApiClient {
     this.accessToken = localStorage.getItem('access_token');
   }
 
+  /**
+   * Normalize endpoint to avoid double /api prefix.
+   * If baseUrl already ends with /api and endpoint starts with /api/, remove one /api.
+   */
+  private normalizeEndpoint(endpoint: string): string {
+    // Normalize baseUrl to check for /api ending
+    const baseUrlTrimmed = this.baseUrl.trim().replace(/\/$/, ''); // Remove trailing slash
+    
+    // If baseUrl is exactly '/api' or ends with '/api', and endpoint starts with '/api/', remove '/api' from endpoint
+    if (baseUrlTrimmed === '/api' || baseUrlTrimmed.endsWith('/api')) {
+      if (endpoint.startsWith('/api/')) {
+        return endpoint.substring(4); // Remove '/api' prefix, leaving '/auth/register'
+      } else if (endpoint === '/api') {
+        return ''; // Edge case: endpoint is just '/api'
+      }
+    }
+    return endpoint;
+  }
+
   setAccessToken(token: string | null) {
     this.accessToken = token;
     if (token) {
@@ -32,7 +51,8 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const normalizedEndpoint = this.normalizeEndpoint(endpoint);
+    const url = `${this.baseUrl}${normalizedEndpoint}`;
     const token = this.getAccessToken();
 
     const headers: Record<string, string> = {
@@ -98,7 +118,8 @@ class ApiClient {
 
   // Form data for OAuth2 login
   async postForm<T>(endpoint: string, formData: FormData): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const normalizedEndpoint = this.normalizeEndpoint(endpoint);
+    const url = `${this.baseUrl}${normalizedEndpoint}`;
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
