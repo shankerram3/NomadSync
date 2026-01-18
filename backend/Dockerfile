@@ -3,7 +3,7 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy frontend package files
+# Copy frontend package files (build context should be project root)
 COPY package*.json ./
 COPY vite.config.ts ./
 COPY tsconfig.json ./
@@ -42,14 +42,14 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy requirements first for better caching (build context should be project root)
+COPY backend/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend application code
-COPY app ./app
+COPY backend/app ./app
 
 # Copy built frontend from frontend-builder stage
 COPY --from=frontend-builder /app/frontend/dist ./static
