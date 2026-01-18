@@ -19,18 +19,22 @@ class ApiClient {
    * If baseUrl already ends with /api and endpoint starts with /api/, remove one /api.
    */
   private normalizeEndpoint(endpoint: string): string {
-    // Normalize baseUrl to check for /api ending
-    const baseUrlTrimmed = this.baseUrl.trim().replace(/\/$/, ''); // Remove trailing slash
+    // Normalize both baseUrl and endpoint
+    const baseUrlTrimmed = this.baseUrl.trim().replace(/\/+$/, ''); // Remove trailing slashes
+    const endpointTrimmed = endpoint.trim();
     
-    // If baseUrl is exactly '/api' or ends with '/api', and endpoint starts with '/api/', remove '/api' from endpoint
+    // If baseUrl ends with '/api' (including just '/api'), and endpoint starts with '/api/', remove '/api' from endpoint
     if (baseUrlTrimmed === '/api' || baseUrlTrimmed.endsWith('/api')) {
-      if (endpoint.startsWith('/api/')) {
-        return endpoint.substring(4); // Remove '/api' prefix, leaving '/auth/register'
-      } else if (endpoint === '/api') {
+      if (endpointTrimmed.startsWith('/api/')) {
+        // Remove '/api' prefix from endpoint
+        const normalized = endpointTrimmed.substring(4);
+        // Ensure it starts with '/' (in case endpoint was just '/api/')
+        return normalized.startsWith('/') ? normalized : '/' + normalized;
+      } else if (endpointTrimmed === '/api') {
         return ''; // Edge case: endpoint is just '/api'
       }
     }
-    return endpoint;
+    return endpointTrimmed;
   }
 
   setAccessToken(token: string | null) {
@@ -52,7 +56,11 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const normalizedEndpoint = this.normalizeEndpoint(endpoint);
-    const url = `${this.baseUrl}${normalizedEndpoint}`;
+    let url = `${this.baseUrl}${normalizedEndpoint}`;
+    
+    // Final safety check: remove double /api if somehow it slipped through
+    // Replace /api/api/ with /api/ (but preserve single /api/)
+    url = url.replace(/\/api\/api\//g, '/api/');
     const token = this.getAccessToken();
 
     const headers: Record<string, string> = {
@@ -119,7 +127,10 @@ class ApiClient {
   // Form data for OAuth2 login
   async postForm<T>(endpoint: string, formData: FormData): Promise<T> {
     const normalizedEndpoint = this.normalizeEndpoint(endpoint);
-    const url = `${this.baseUrl}${normalizedEndpoint}`;
+    let url = `${this.baseUrl}${normalizedEndpoint}`;
+    
+    // Final safety check: remove double /api if somehow it slipped through
+    url = url.replace(/\/api\/api\//g, '/api/');
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
