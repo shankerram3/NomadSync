@@ -37,9 +37,10 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install system dependencies
+# Install system dependencies (including ca-certificates for SSL/TLS)
 RUN apt-get update && apt-get install -y \
     gcc \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching (build context should be project root)
