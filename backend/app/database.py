@@ -10,8 +10,13 @@ db = Database()
 async def connect_to_mongo():
     """Create database connection"""
     # Use ServerApi for MongoDB Atlas compatibility
+    # For mongodb+srv:// URIs, TLS is automatically enabled
+    # ServerApi('1') ensures compatibility with MongoDB Atlas
     server_api = ServerApi('1')
-    db.client = AsyncIOMotorClient(settings.mongodb_uri, server_api=server_api)
+    db.client = AsyncIOMotorClient(
+        settings.mongodb_uri,
+        server_api=server_api
+    )
     print(f"Connected to MongoDB Atlas: {settings.mongodb_db}")
     
     # Verify connection by pinging
