@@ -210,6 +210,25 @@ echo ""
 print_info "Press Ctrl+C to stop all servers"
 print_info "Note: MongoDB will continue running (use 'docker-compose stop mongodb' to stop it)"
 echo ""
+print_info "Showing console logs (startup completed):"
+echo "─────────────────────────────────────────────────────────"
+
+# Tail both log files with labels using sed to prefix lines
+tail -f backend.log 2>/dev/null | sed "s/^/${BLUE}[BACKEND]${NC} /" &
+BACKEND_TAIL_PID=$!
+tail -f frontend.log 2>/dev/null | sed "s/^/${YELLOW}[FRONTEND]${NC} /" &
+FRONTEND_TAIL_PID=$!
+
+# Enhanced cleanup function to kill tail processes
+cleanup_with_tail() {
+    kill $BACKEND_TAIL_PID $FRONTEND_TAIL_PID 2>/dev/null || true
+    # Kill any remaining tail processes
+    pkill -f "tail -f.*\.log" 2>/dev/null || true
+    cleanup
+}
+
+# Update trap to include tail cleanup
+trap cleanup_with_tail SIGINT SIGTERM
 
 # Wait for both processes
 wait $BACKEND_PID $FRONTEND_PID
