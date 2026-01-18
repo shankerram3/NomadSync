@@ -18,14 +18,14 @@ export interface CreatePlanData {
 export const planService = {
   async get(tripId: string, version?: number): Promise<PlanVersion> {
     const params = version ? `?version=${version}` : '';
-    return apiClient.get<PlanVersion>(`/trips/${tripId}/plan${params}`);
+    return apiClient.get<PlanVersion>(`/api/trips/${tripId}/plan${params}`);
   },
 
   async create(tripId: string, data: CreatePlanData): Promise<PlanVersion> {
-    return apiClient.post<PlanVersion>(`/trips/${tripId}/plan`, data);
+    return apiClient.post<PlanVersion>(`/api/trips/${tripId}/plan`, data);
   },
 
   async listVersions(tripId: string): Promise<PlanVersion[]> {
-    return apiClient.get<PlanVersion[]>(`/trips/${tripId}/plan/versions`);
+    return apiClient.get<PlanVersion[]>(`/api/trips/${tripId}/plan/versions`);
   },
 };

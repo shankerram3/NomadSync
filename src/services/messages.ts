@@ -28,10 +28,10 @@ export const messagesService = {
     if (cursor) {
       params.append('cursor', cursor);
     }
-    return apiClient.get<Message[]>(`/trips/${tripId}/messages?${params.toString()}`);
+    return apiClient.get<Message[]>(`/api/trips/${tripId}/messages?${params.toString()}`);
   },
 
   async create(tripId: string, data: CreateMessageData): Promise<Message> {
-    return apiClient.post<Message>(`/trips/${tripId}/messages`, data);
+    return apiClient.post<Message>(`/api/trips/${tripId}/messages`, data);
   },
 };

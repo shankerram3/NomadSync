@@ -30,7 +30,7 @@ export interface User {
 
 export const authService = {
   async register(data: RegisterData): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/register', data);
+    const response = await apiClient.post<AuthResponse>('/api/auth/register', data);
     if (response.access_token) {
       apiClient.setAccessToken(response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
@@ -44,7 +44,7 @@ export const authService = {
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
 
-    const response = await apiClient.postForm<AuthResponse>('/auth/login', formData);
+    const response = await apiClient.postForm<AuthResponse>('/api/auth/login', formData);
     if (response.access_token) {
       apiClient.setAccessToken(response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
@@ -59,7 +59,7 @@ export const authService = {
     }
 
     const response = await apiClient.post<{ access_token: string; token_type: string }>(
-      '/auth/refresh',
+      '/api/auth/refresh',
       { refresh_token: refreshToken }
     );
     
@@ -70,7 +70,7 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<User> {
-    return apiClient.get<User>('/auth/me');
+    return apiClient.get<User>('/api/auth/me');
   },
 
   logout() {

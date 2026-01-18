@@ -29,15 +29,15 @@ export interface CreateConflictData {
 
 export const conflictsService = {
   async create(tripId: string, data: CreateConflictData): Promise<Conflict> {
-    return apiClient.post<Conflict>(`/trips/${tripId}/conflicts`, data);
+    return apiClient.post<Conflict>(`/api/trips/${tripId}/conflicts`, data);
   },
 
   async getById(tripId: string, conflictId: string): Promise<Conflict> {
-    return apiClient.get<Conflict>(`/trips/${tripId}/conflicts/${conflictId}`);
+    return apiClient.get<Conflict>(`/api/trips/${tripId}/conflicts/${conflictId}`);
   },
 
   async vote(tripId: string, conflictId: string, optionKey: string): Promise<void> {
-    await apiClient.post(`/trips/${tripId}/conflicts/${conflictId}/vote`, {
+    await apiClient.post(`/api/trips/${tripId}/conflicts/${conflictId}/vote`, {
       option_key: optionKey,
     });
   },

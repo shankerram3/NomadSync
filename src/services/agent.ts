@@ -17,6 +17,6 @@ export interface AgentResponse {
 
 export const agentService = {
   async runAgent(request: AgentRequest): Promise<AgentResponse> {
-    return apiClient.post<AgentResponse>('/agents/plan', request);
+    return apiClient.post<AgentResponse>('/api/agents/plan', request);
   },
 };

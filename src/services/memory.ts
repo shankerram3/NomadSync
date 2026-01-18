@@ -27,10 +27,10 @@ export interface UpdateMemoryData {
 
 export const memoryService = {
   async get(tripId: string): Promise<TripMemory> {
-    return apiClient.get<TripMemory>(`/trips/${tripId}/memory`);
+    return apiClient.get<TripMemory>(`/api/trips/${tripId}/memory`);
   },
 
   async update(tripId: string, data: UpdateMemoryData): Promise<TripMemory> {
-    return apiClient.patch<TripMemory>(`/trips/${tripId}/memory`, data);
+    return apiClient.patch<TripMemory>(`/api/trips/${tripId}/memory`, data);
   },
 };
