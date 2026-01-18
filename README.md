@@ -487,304 +487,560 @@ Content-Type: application/json
 
 ## 🏗 Architecture
 
-### System Architecture
+### System Architecture Overview
+
+NomadSync follows a modern full-stack architecture with a React frontend, FastAPI backend, and MongoDB database. The system supports both local development with Docker Compose and cloud deployment on Railway.
 
 #### Docker Compose (Local Development)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Network                            │
-│                   (nomadsync-network)                        │
-│                                                              │
-│  ┌─────────────┐                                            │
-│  │   Browser   │                                            │
-│  │  (Client)   │                                            │
-│  └──────┬──────┘                                            │
-│         │ HTTP/HTTPS                                        │
-│         │ Port 80                                           │
-│         ▼                                                    │
-│  ┌──────────────────────────────────────┐                  │
-│  │      Nginx (Port 80)                 │                  │
-│  │  ┌──────────────────────────────┐   │                  │
-│  │  │ Static File Serving          │   │                  │
-│  │  │ - React SPA                  │   │                  │
-│  │  │ - Assets (JS, CSS, images)   │   │                  │
-│  │  └──────────────────────────────┘   │                  │
-│  │                                      │                  │
-│  │  ┌──────────────────────────────┐   │                  │
-│  │  │ API Proxy (commented out)    │   │                  │
-│  │  │ /api → backend:8000          │   │                  │
-│  │  └──────────────────────────────┘   │                  │
-│  └──────────┬───────────────────────────┘                  │
-│             │                                                │
-│    ┌────────┴────────┬──────────────────┐                  │
-│    │                 │                  │                  │
-│    ▼                 ▼                  ▼                  │
-│  ┌─────────┐  ┌─────────────┐  ┌──────────────────┐      │
-│  │Frontend │  │   Backend   │  │    MongoDB       │      │
-│  │(React)  │  │  (FastAPI)  │  │   (Mongo:7)      │      │
-│  │         │  │  Port 8000  │  │   Port 27017     │      │
-│  │ - SPA   │  │             │  │                  │      │
-│  │ - Vite  │  │ - REST API  │  │ - users          │      │
-│  │ - TS    │  │ - JWT Auth  │  │ - trips          │      │
-│  │         │  │ - LangGraph │  │ - messages       │      │
-│  └─────────┘  │ - OpenAI    │  │ - trip_memory    │      │
-│               │             │  │ - plan_versions  │      │
-│               └──────┬──────┘  │ - conflicts      │      │
-│                      │         └──────────────────┘      │
-│                      │                                    │
-│                      │ OpenAI API (external)              │
-│                      ▼                                    │
-│              ┌─────────────────┐                         │
-│              │   OpenAI API    │                         │
-│              │  (gpt-4o-mini)  │                         │
-│              └─────────────────┘                         │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Client"
+        Browser[🌐 Browser<br/>HTTP/HTTPS :80]
+    end
+    
+    subgraph "Docker Network: nomadsync-network"
+        subgraph "Frontend Service"
+            Nginx[📦 Nginx<br/>Port 80]
+            FrontendContainer[⚛️ React SPA<br/>- Vite Dev Server<br/>- TypeScript<br/>- Tailwind CSS]
+        end
+        
+        subgraph "Backend Service"
+            Backend[🚀 FastAPI<br/>Port 8000<br/>- REST API<br/>- JWT Auth<br/>- LangGraph]
+        end
+        
+        subgraph "Database Service"
+            MongoDB[(🗄️ MongoDB<br/>Port 27017<br/>- users<br/>- trips<br/>- messages<br/>- trip_memory<br/>- plan_versions<br/>- conflicts)]
+        end
+    end
+    
+    subgraph "External Services"
+        OpenAI[🤖 OpenAI API<br/>gpt-4o-mini]
+    end
+    
+    Browser -->|"Static Files & Assets"| Nginx
+    Nginx -->|"API Requests /api/*"| Backend
+    Browser -->|"Direct Dev Server"| FrontendContainer
+    Backend <-->|"Async Operations"| MongoDB
+    Backend -->|"LLM Calls"| OpenAI
+    
+    style Browser fill:#e1f5ff
+    style Backend fill:#00d4aa
+    style MongoDB fill:#4db33d
+    style OpenAI fill:#412991
 ```
 
 #### Railway Deployment (Production)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Internet / Users                         │
-└────────────────┬────────────────────────────────────────────┘
-                 │ HTTPS
-                 │
-    ┌────────────┴────────────┐
-    │                         │
-    ▼                         ▼
-┌──────────────┐      ┌──────────────┐
-│   Frontend   │      │   Backend    │
-│   Service    │      │   Service    │
-│              │      │              │
-│ - Railway    │      │ - Railway    │
-│   Platform   │      │   Platform   │
-│ - Nginx      │      │ - FastAPI    │
-│ - React SPA  │      │ - Uvicorn    │
-│              │      │              │
-│ Port: 80     │      │ Port: 8000   │
-└──────┬───────┘      └──────┬───────┘
-       │                     │
-       │ VITE_API_URL        │
-       │ (Backend Public URL)│
-       │                     │
-       └──────────┬──────────┘
-                  │
-                  ▼
-         ┌─────────────────┐
-         │   MongoDB       │
-         │   (Railway/     │
-         │    External)    │
-         │                 │
-         │ - users         │
-         │ - trips         │
-         │ - messages      │
-         │ - trip_memory   │
-         │ - plan_versions │
-         │ - conflicts     │
-         └─────────────────┘
+```mermaid
+graph TB
+    subgraph "Internet / Users"
+        Users[👥 Users]
+    end
+    
+    subgraph "Railway Platform"
+        subgraph "Single Service Container"
+            FastAPI[🚀 FastAPI + React<br/>Port: $PORT<br/>- Uvicorn ASGI Server<br/>- Static File Serving<br/>- API Routes /api/*]
+            
+            subgraph "Routes"
+                Routes1["/ → index.html<br/>Frontend SPA"]
+                Routes2["/api/* → API Endpoints"]
+                Routes3["/assets/* → Static Assets"]
+            end
+        end
+    end
+    
+    subgraph "External Services"
+        MongoDB[(🗄️ MongoDB Atlas<br/>mongodb+srv://<br/>Network: 0.0.0.0/0)]
+        OpenAI[🤖 OpenAI API<br/>gpt-4o-mini]
+    end
+    
+    Users -->|"HTTPS<br/>*.up.railway.app"| FastAPI
+    FastAPI --> Routes1
+    FastAPI --> Routes2
+    FastAPI --> Routes3
+    FastAPI <-->|"SSL/TLS<br/>Connection String"| MongoDB
+    FastAPI -->|"API Calls"| OpenAI
+    
+    style FastAPI fill:#00d4aa
+    style MongoDB fill:#4db33d
+    style OpenAI fill:#412991
+    style Users fill:#e1f5ff
 ```
 
-**Key Differences:**
-- Railway deploys frontend and backend as **separate services**
-- Services don't share Docker networks
-- Frontend connects to backend via **public Railway URLs**
-- Set `VITE_API_URL` environment variable in Railway to backend's public URL
+**Key Architecture Points:**
+- **Single Service**: Frontend and backend served from one FastAPI container
+- **Same Origin**: Frontend and API share the same domain, eliminating CORS issues
+- **Static Serving**: FastAPI serves built React SPA from `/` route
+- **API Routing**: All API endpoints prefixed with `/api/*`
+- **MongoDB Atlas**: External cloud database with IP whitelisting (`0.0.0.0/0`)
+- **Build Process**: Multi-stage Docker build compiles frontend before backend stage
+
+#### Backend API Architecture
+
+```mermaid
+graph TB
+    subgraph "FastAPI Application"
+        Main[main.py<br/>App Initialization<br/>- CORS Middleware<br/>- DB Connection<br/>- Static File Serving]
+        
+        subgraph "API Routers"
+            AuthRouter[auth.py<br/>- /auth/register<br/>- /auth/login<br/>- /auth/refresh]
+            TripsRouter[trips.py<br/>- GET/POST /trips<br/>- GET/PATCH /trips/{id}]
+            MessagesRouter[messages.py<br/>- GET/POST /trips/{id}/messages]
+            MemoryRouter[memory.py<br/>- GET/PATCH /trips/{id}/memory]
+            PlanRouter[plan.py<br/>- GET/POST /trips/{id}/plan]
+            ConflictsRouter[conflicts.py<br/>- GET /trips/{id}/conflicts<br/>- POST /conflicts/{id}/vote]
+            AgentRouter[agent.py<br/>- POST /agents/plan]
+        end
+        
+        subgraph "Middleware & Utils"
+            JWTMiddleware[Auth Middleware<br/>- Token validation<br/>- User extraction<br/>- Permission checks]
+            TripPermissions[trip_permissions.py<br/>- Role checking<br/>- Access control]
+            AuthUtils[auth.py<br/>- Password hashing<br/>- Token generation]
+        end
+        
+        subgraph "Models"
+            UserModel[user.py]
+            TripModel[trip.py]
+            MessageModel[message.py]
+            MemoryModel[memory.py]
+            PlanModel[plan.py]
+            ConflictModel[conflict.py]
+        end
+        
+        subgraph "Services"
+            Database[database.py<br/>- MongoDB connection<br/>- Async operations<br/>- Connection pooling]
+            LangGraphWorkflow[langgraph_workflow.py<br/>- Agent orchestration<br/>- OpenAI integration<br/>- Task execution]
+        end
+    end
+    
+    subgraph "External Services"
+        MongoDB[(MongoDB Atlas<br/>Collections:<br/>- users<br/>- trips<br/>- messages<br/>- trip_memory<br/>- plan_versions<br/>- conflicts)]
+        OpenAI[OpenAI API<br/>gpt-4o-mini]
+    end
+    
+    Main --> AuthRouter
+    Main --> TripsRouter
+    Main --> MessagesRouter
+    Main --> MemoryRouter
+    Main --> PlanRouter
+    Main --> ConflictsRouter
+    Main --> AgentRouter
+    
+    AuthRouter --> JWTMiddleware
+    TripsRouter --> JWTMiddleware
+    MessagesRouter --> JWTMiddleware
+    MemoryRouter --> JWTMiddleware
+    PlanRouter --> JWTMiddleware
+    ConflictsRouter --> JWTMiddleware
+    AgentRouter --> JWTMiddleware
+    
+    JWTMiddleware --> AuthUtils
+    TripsRouter --> TripPermissions
+    MessagesRouter --> TripPermissions
+    
+    AuthRouter --> UserModel
+    TripsRouter --> TripModel
+    MessagesRouter --> MessageModel
+    MemoryRouter --> MemoryModel
+    PlanRouter --> PlanModel
+    ConflictsRouter --> ConflictModel
+    
+    AuthRouter --> Database
+    TripsRouter --> Database
+    MessagesRouter --> Database
+    MemoryRouter --> Database
+    PlanRouter --> Database
+    ConflictsRouter --> Database
+    
+    Database --> MongoDB
+    AgentRouter --> LangGraphWorkflow
+    LangGraphWorkflow --> OpenAI
+    LangGraphWorkflow --> Database
+    
+    style Main fill:#00d4aa
+    style Database fill:#4db33d
+    style LangGraphWorkflow fill:#ff6b6b
+    style OpenAI fill:#412991
+    style MongoDB fill:#4db33d
+```
+
+**Backend Architecture Highlights:**
+- **Modular Routers**: Each domain (auth, trips, messages, etc.) has its own router module
+- **Middleware Chain**: JWT authentication middleware validates all protected routes
+- **Permission System**: Trip-level permissions (owner/editor/viewer) enforced via utilities
+- **Pydantic Models**: Type-safe data validation and serialization
+- **Async Database**: Motor (async MongoDB driver) for non-blocking operations
+- **Agent Integration**: LangGraph workflow triggered via `/agents/plan` endpoint
+
+### Database Schema
+
+The application uses MongoDB with the following collection structure and relationships:
+
+```mermaid
+erDiagram
+    USER {
+        string _id PK
+        string email UK
+        string password_hash
+        string name
+        string avatar_emoji
+        datetime created_at
+        datetime updated_at
+    }
+    
+    TRIP {
+        string _id PK
+        string title
+        string destination
+        object dates
+        string status
+        int readiness
+        array members
+        string cover_image
+        datetime created_at
+        datetime updated_at
+    }
+    
+    MESSAGE {
+        string _id PK
+        string tripId FK
+        string authorId FK
+        string conflictId FK
+        string type
+        string content
+        string summary
+        array questions
+        bool has_view_plan
+        datetime created_at
+    }
+    
+    TRIP_MEMORY {
+        string _id PK
+        string tripId FK
+        object destination
+        object dates
+        object budget
+        object pace
+        object duration
+        datetime updated_at
+    }
+    
+    PLAN_VERSION {
+        string _id PK
+        string tripId FK
+        int version
+        object itinerary
+        string created_by
+        datetime created_at
+    }
+    
+    CONFLICT {
+        string _id PK
+        string tripId FK
+        string messageId FK
+        array options
+        datetime created_at
+    }
+    
+    USER ||--o{ TRIP : "creates/owns"
+    TRIP ||--o{ MESSAGE : "contains"
+    TRIP ||--|| TRIP_MEMORY : "has"
+    TRIP ||--o{ PLAN_VERSION : "has"
+    TRIP ||--o{ CONFLICT : "has"
+    MESSAGE ||--o| CONFLICT : "triggers"
+    USER ||--o{ MESSAGE : "writes"
+```
+
+**Collection Details:**
+- **users**: User accounts with authentication credentials
+- **trips**: Trip entities with members, status, and metadata
+- **messages**: Chat messages linked to trips, can reference conflicts
+- **trip_memory**: Extracted trip details (destination, dates, budget) with confidence scores
+- **plan_versions**: Versioned trip plans with flexible itinerary structure
+- **conflicts**: Voting conflicts with options and vote tracking
 
 ### Agent Workflow (LangGraph)
 
-The application uses LangGraph to orchestrate an AI agent workflow:
+The application uses LangGraph to orchestrate an AI agent workflow for processing trip planning conversations:
 
-```
-User Message
-    │
-    ▼
-                ┌────────────────┐
-                │  parse_intent  │
-                │                │
-                │ - Extract      │
-                │   destinations │
-                │ - Extract dates│
-                │ - Extract      │
-                │   budget       │
-                │ - Extract      │
-                │   group size   │
-                │ - Determine    │
-                │   requested    │
-                │   tasks        │
-                └────────┬───────┘
-                         │
-                         ▼
-                ┌────────────────┐
-                │create_task_plan│
-                │                │
-                │ - Generate     │
-                │   task list    │
-                │ - Set priority │
-                │ - Set          │
-                │   dependencies │
-                │ - Check if     │
-                │   clarification│
-                │   needed       │
-                └────────┬───────┘
-                         │
-                         ▼
-                ┌────────────────┐
-                │check_clarifica │
-                │     tion       │
-                │                │
-                │ - Check if     │
-                │   more info    │
-                │   needed       │
-                └────────┬───────┘
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-        YES ──┤                     ├─── NO
-              │                     │
-              ▼                     ▼
-    ┌────────────────┐    ┌────────────────┐
-    │      END       │    │execute_task_   │
-    │                │    │     plan       │
-    │ Return         │    │                │
-    │ Clarification  │    │ - Search       │
-    │ Question       │    │   flights      │
-    └────────────────┘    │ - Search       │
-                          │   hotels       │
-                          │ - Get weather  │
-                          │ - Plan days    │
-                          └────────┬───────┘
-                                   │
-                                   ▼
-                          ┌────────────────┐
-                          │synthesize_     │
-                          │   response     │
-                          │                │
-                          │ - Generate     │
-                          │   natural      │
-                          │   language     │
-                          │   response     │
-                          │ - Format for   │
-                          │   user         │
-                          └────────┬───────┘
-                                   │
-                                   ▼
-                                  END
+```mermaid
+flowchart TD
+    Start([User Message]) --> ParseIntent[parse_intent<br/>Extract structured data<br/>- Destinations<br/>- Dates<br/>- Budget<br/>- Group size<br/>- Requested tasks]
+    
+    ParseIntent --> CreateTaskPlan[create_task_plan<br/>Generate task list<br/>- Set priorities<br/>- Define dependencies<br/>- Check if clarification needed]
+    
+    CreateTaskPlan --> CheckClarification{check_clarification<br/>Missing critical info?}
+    
+    CheckClarification -->|Yes| Clarification[Return Clarification<br/>Ask user for more info]
+    CheckClarification -->|No| ExecuteTasks[execute_task_plan<br/>Execute tasks in order:<br/>- Search flights<br/>- Search hotels<br/>- Get weather<br/>- Plan itinerary days]
+    
+    ExecuteTasks --> Synthesize[synthesize_response<br/>Generate natural language response<br/>- Format for user<br/>- Include plan highlights<br/>- Suggest next steps]
+    
+    Synthesize --> End([End])
+    Clarification --> End
+    
+    style Start fill:#e1f5ff
+    style End fill:#ffe1f5
+    style ParseIntent fill:#fff4e1
+    style CreateTaskPlan fill:#fff4e1
+    style ExecuteTasks fill:#e1ffe1
+    style Synthesize fill:#e1ffe1
+    style CheckClarification fill:#ffe1e1
+    style Clarification fill:#ffe1e1
 ```
 
 **Workflow Details:**
-1. **parse_intent**: Uses OpenAI with JSON schema to extract structured trip data
-2. **create_task_plan**: Generates ordered task list based on requested actions
-3. **check_clarification**: Determines if critical information is missing
-4. **execute_task_plan**: Executes tasks in priority order (currently stubbed for external APIs)
-5. **synthesize_response**: Generates human-readable response from task results
+1. **parse_intent**: Uses OpenAI with JSON schema to extract structured trip data from natural language
+2. **create_task_plan**: Generates ordered task list based on requested actions and dependencies
+3. **check_clarification**: Determines if critical information is missing before proceeding
+4. **execute_task_plan**: Executes tasks in priority order (currently stubbed for future external API integrations)
+5. **synthesize_response**: Generates human-readable response from task results and context
 
-### Request Flow
+### Request Flow Diagrams
 
-#### User Message Flow
+#### User Message & Agent Processing Flow
 
-```
-           ┌──────────────┐
-│    User      │
-│   Browser    │
-           └──────┬───────┘
-                  │
-       │ 1. User types message
-       ▼
-┌─────────────────────────────────────┐
-│  React ChatPanel Component          │
-│  - Captures user input              │
-│  - Validates input                  │
-└──────┬──────────────────────────────┘
-       │
-       │ 2. POST /trips/{id}/messages
-       │    Headers: Authorization: Bearer <token>
-       │    Body: { type: "human", content: "..." }
-       ▼
-┌─────────────────────────────────────┐
-│  FastAPI Backend                    │
-│  /routers/messages.py               │
-│  - Validates JWT token              │
-│  - Checks trip permissions          │
-│  - Saves message to MongoDB         │
-└──────┬──────────────────────────────┘
-       │
-       │ 3. Trigger agent workflow
-       │    POST /agents/plan
-       ▼
-┌─────────────────────────────────────┐
-│  LangGraph Workflow                 │
-│  /agents/langgraph_workflow.py      │
-│  - Parse intent                      │
-│  - Create task plan                  │
-│  - Execute tasks (if no clarification)│
-│  - Synthesize response               │
-└──────┬──────────────────────────────┘
-       │
-       │ 4. Save agent response
-       │    POST /trips/{id}/messages
-       │    { type: "agent", content: "..." }
-       ▼
-┌─────────────────────────────────────┐
-│  Update Trip Memory (if applicable) │
-│  /routers/memory.py                 │
-│  - Extract trip details             │
-│  - Update confidence scores         │
-│  - Store sources                    │
-└──────┬──────────────────────────────┘
-       │
-       │ 5. Update Plan (if generated)
-       │    POST /trips/{id}/plan
-       │    { version: N, itinerary: {...} }
-       ▼
-┌─────────────────────────────────────┐
-│  Frontend Polls/Updates             │
-│  - Refresh messages list            │
-│  - Update memory panel              │
-│  - Update plan panel                │
-└─────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant U as User Browser
+    participant CP as ChatPanel Component
+    participant API as FastAPI Backend
+    participant DB as MongoDB
+    participant LG as LangGraph Agent
+    participant OAI as OpenAI API
+    
+    U->>CP: 1. User types message
+    CP->>CP: Validate input
+    
+    CP->>API: 2. POST /trips/{id}/messages<br/>Authorization: Bearer token<br/>Body: {type: "human", content: "..."}
+    API->>API: Validate JWT token
+    API->>API: Check trip permissions
+    API->>DB: Save message to MongoDB
+    DB-->>API: Message saved
+    API-->>CP: 201 Created
+    
+    CP->>API: 3. POST /agents/plan<br/>Trigger agent workflow
+    API->>LG: Invoke LangGraph workflow
+    
+    LG->>OAI: 4a. Parse intent<br/>(Extract structured data)
+    OAI-->>LG: Intent data
+    
+    LG->>LG: 4b. Create task plan<br/>(Generate ordered tasks)
+    
+    LG->>LG: 4c. Check clarification<br/>(Validate required info)
+    
+    alt No clarification needed
+        LG->>LG: 4d. Execute tasks<br/>(Search flights, hotels, etc.)
+        LG->>OAI: 4e. Synthesize response<br/>(Generate natural language)
+        OAI-->>LG: Agent response
+    else Clarification needed
+        LG-->>API: Return clarification question
+    end
+    
+    LG-->>API: Workflow result
+    
+    API->>DB: 5. Save agent message<br/>{type: "agent", content: "..."}
+    DB-->>API: Saved
+    
+    API->>DB: 6. Update trip memory<br/>(if applicable)
+    DB-->>API: Memory updated
+    
+    API->>DB: 7. Create/update plan version<br/>(if plan generated)
+    DB-->>API: Plan version saved
+    
+    API-->>CP: Workflow complete
+    CP->>CP: 8. Refresh UI<br/>- Update messages list<br/>- Update memory panel<br/>- Update plan panel
+    CP-->>U: Display updates
 ```
 
 #### Authentication Flow
 
-```
-┌──────────────┐
-│    User      │
-└──────┬───────┘
-       │
-       │ 1. POST /auth/login
-       │    username=email&password=pass
-       ▼
-┌─────────────────────────────────────┐
-│  Backend /routers/auth.py           │
-│  - Validate credentials              │
-│  - Check password hash               │
-│  - Generate JWT tokens               │
-└──────┬──────────────────────────────┘
-       │
-       │ 2. Return tokens
-       │    { access_token, refresh_token }
-       ▼
-┌─────────────────────────────────────┐
-│  Frontend AuthContext               │
-│  - Store tokens in localStorage     │
-│  - Set Authorization header         │
-│  - Redirect to trips page           │
-└──────┬──────────────────────────────┘
-       │
-       │ 3. Subsequent requests
-       │    Include: Authorization: Bearer <token>
-       ▼
-┌─────────────────────────────────────┐
-│  Backend Middleware                 │
-│  - Verify JWT signature             │
-│  - Check expiration                 │
-│  - Extract user_id                  │
-│  - Attach to request                │
-└─────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant U as User Browser
+    participant LP as LoginPage Component
+    participant API as FastAPI Backend
+    participant DB as MongoDB
+    participant Auth as AuthContext
+    
+    alt Registration
+        U->>LP: Fill registration form
+        LP->>API: POST /auth/register<br/>Body: {email, password, name}
+        API->>API: Validate input
+        API->>DB: Check if user exists
+        DB-->>API: User not found
+        API->>API: Hash password (bcrypt)
+        API->>DB: Create user document
+        DB-->>API: User created
+        API->>API: Generate JWT tokens<br/>(access + refresh)
+        API-->>LP: 201 {access_token, refresh_token}
+    else Login
+        U->>LP: Enter credentials
+        LP->>API: POST /auth/login<br/>Form: username, password
+        API->>DB: Find user by email
+        DB-->>API: User document
+        API->>API: Verify password
+        API->>API: Generate JWT tokens
+        API-->>LP: 200 {access_token, refresh_token}
+    end
+    
+    LP->>Auth: Store tokens in context
+    Auth->>Auth: Set auth state
+    Auth->>LP: Redirect to trips page
+    
+    Note over U,Auth: Subsequent API requests include<br/>Authorization: Bearer <access_token>
+    
+    alt Token Refresh
+        API->>API: Access token expired
+        API-->>LP: 401 Unauthorized
+        LP->>API: POST /auth/refresh<br/>Authorization: Bearer <refresh_token>
+        API->>API: Validate refresh token
+        API->>API: Generate new access token
+        API-->>LP: 200 {access_token}
+        LP->>Auth: Update access token
+        LP->>API: Retry original request
+    end
 ```
 
-### MongoDB Schema
+#### Trip Management Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User Browser
+    participant TP as TripsPage Component
+    participant TSP as TripSidebar Component
+    participant API as FastAPI Backend
+    participant DB as MongoDB
+    
+    U->>TP: Load trips dashboard
+    TP->>API: GET /trips<br/>Authorization: Bearer token
+    API->>DB: Query user's trips<br/>(by member user_id)
+    DB-->>API: Trip documents
+    API-->>TP: 200 [trips array]
+    TP->>U: Display trips list
+    
+    U->>TP: Click "New Trip"
+    TP->>API: POST /trips<br/>Body: {title, destination, dates}
+    API->>API: Create owner member
+    API->>DB: Insert trip document
+    DB-->>API: Trip created
+    API-->>TP: 201 Trip object
+    TP->>U: Show new trip in list
+    
+    U->>TP: Click trip to open
+    TP->>U: Navigate to planner
+    TP->>API: GET /trips/{id}<br/>GET /trips/{id}/messages<br/>GET /trips/{id}/memory<br/>GET /trips/{id}/plan
+    API->>DB: Fetch trip data
+    DB-->>API: Trip, messages, memory, plan
+    API-->>TSP: 200 Multiple responses
+    TSP->>U: Display planner with data
+    
+    U->>TSP: Update trip details
+    TSP->>API: PATCH /trips/{id}<br/>Body: {readiness, status, ...}
+    API->>DB: Update trip document
+    DB-->>API: Updated
+    API-->>TSP: 200 Updated trip
+    TSP->>U: Refresh UI
+```
+
+### Frontend Component Architecture
+
+```mermaid
+graph TB
+    subgraph "App Root"
+        App[App.tsx<br/>Router & Routes]
+    end
+    
+    subgraph "Authentication"
+        LoginPage[LoginPage<br/>- Login form<br/>- Registration form<br/>- Auth state]
+        AuthContext[AuthContext<br/>- Token management<br/>- Auth state<br/>- Login/Register methods]
+        ProtectedRoute[ProtectedRoute<br/>- Route guard<br/>- Redirect logic]
+    end
+    
+    subgraph "Trip Management"
+        TripsPage[TripsPage<br/>- Trip list display<br/>- Create new trip<br/>- Navigation]
+        TripPlanner[TripPlanner<br/>- Main planner container<br/>- State management<br/>- Data loading]
+    end
+    
+    subgraph "Planner Components"
+        TripSidebar[TripSidebar<br/>- Trip metadata<br/>- Readiness indicator<br/>- Trip status]
+        ChatPanel[ChatPanel<br/>- Message display<br/>- User input<br/>- Quick replies<br/>- Conflict voting]
+        MemoryPlanPanel[MemoryPlanPanel<br/>- Memory tab<br/>- Plan tab<br/>- Tab switching]
+    end
+    
+    subgraph "Services Layer"
+        AuthService[auth.ts<br/>Login/Register/Refresh]
+        TripsService[trips.ts<br/>CRUD operations]
+        MessagesService[messages.ts<br/>Chat messages]
+        MemoryService[memory.ts<br/>Trip memory]
+        PlanService[plan.ts<br/>Plan versions]
+        ConflictsService[conflicts.ts<br/>Vote handling]
+        AgentService[agent.ts<br/>Agent workflow]
+        ApiClient[api.ts<br/>HTTP client<br/>JWT handling<br/>Error handling]
+    end
+    
+    subgraph "UI Components"
+        shadcnUI[shadcn/ui Components<br/>- Button, Card, Dialog<br/>- Input, Select, Tabs<br/>- Form, Alert, etc.]
+    end
+    
+    App --> LoginPage
+    App --> ProtectedRoute
+    ProtectedRoute --> TripsPage
+    ProtectedRoute --> TripPlanner
+    
+    LoginPage --> AuthContext
+    AuthContext --> AuthService
+    AuthService --> ApiClient
+    
+    TripsPage --> TripsService
+    TripsService --> ApiClient
+    
+    TripPlanner --> TripSidebar
+    TripPlanner --> ChatPanel
+    TripPlanner --> MemoryPlanPanel
+    TripPlanner --> MessagesService
+    TripPlanner --> MemoryService
+    TripPlanner --> PlanService
+    TripPlanner --> AgentService
+    
+    ChatPanel --> MessagesService
+    ChatPanel --> ConflictsService
+    MemoryPlanPanel --> MemoryService
+    MemoryPlanPanel --> PlanService
+    
+    MessagesService --> ApiClient
+    MemoryService --> ApiClient
+    PlanService --> ApiClient
+    ConflictsService --> ApiClient
+    AgentService --> ApiClient
+    
+    LoginPage --> shadcnUI
+    TripsPage --> shadcnUI
+    TripPlanner --> shadcnUI
+    ChatPanel --> shadcnUI
+    MemoryPlanPanel --> shadcnUI
+    TripSidebar --> shadcnUI
+    
+    style App fill:#e1f5ff
+    style AuthContext fill:#fff4e1
+    style TripPlanner fill:#e1ffe1
+    style ApiClient fill:#ffe1e1
+    style shadcnUI fill:#f0e1ff
+```
+
+**Component Responsibilities:**
+- **App.tsx**: Main router, route definitions, global providers
+- **AuthContext**: Centralized authentication state and methods
+- **TripsPage**: Trip dashboard, list view, trip creation
+- **TripPlanner**: Main planner container coordinating all planner components
+- **ChatPanel**: Chat interface, message rendering, user input
+- **MemoryPlanPanel**: Displays extracted trip memory and plan versions
+- **TripSidebar**: Trip metadata, status indicators, readiness calculation
+- **Services**: API communication layer with error handling
+- **ApiClient**: Base HTTP client with JWT token management
+
+### MongoDB Schema Details
 
 #### Database: `nomadsync`
 
