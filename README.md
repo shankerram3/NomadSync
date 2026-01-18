@@ -489,108 +489,567 @@ Content-Type: application/json
 
 ### System Architecture
 
+#### Docker Compose (Local Development)
+
 ```
-┌─────────────┐
-│   Browser   │
-│  (React)    │
-└──────┬──────┘
-       │ HTTP/HTTPS
-       │
-┌──────▼─────────────────┐
-│   Nginx (Port 80)      │
-│  - Static files        │
-│  - API proxy (/api)    │
-└──────┬─────────────────┘
-       │
-       ├──────────────┬──────────────┐
-       │              │              │
-┌──────▼──────┐ ┌─────▼─────┐ ┌─────▼─────┐
-│  Frontend   │ │  Backend  │ │  MongoDB  │
-│   (React)   │ │  (FastAPI)│ │   (Port   │
-│   (Port 80) │ │  (Port    │ │   27017)  │
-│             │ │  8000)    │ │           │
-└─────────────┘ └───────────┘ └───────────┘
-                      │
-                      │ OpenAI API
-                      ▼
-              ┌───────────────┐
-              │   LangGraph   │
-              │  Agent Workflow│
-              └───────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Docker Network                            │
+│                   (nomadsync-network)                        │
+│                                                              │
+│  ┌─────────────┐                                            │
+│  │   Browser   │                                            │
+│  │  (Client)   │                                            │
+│  └──────┬──────┘                                            │
+│         │ HTTP/HTTPS                                        │
+│         │ Port 80                                           │
+│         ▼                                                    │
+│  ┌──────────────────────────────────────┐                  │
+│  │      Nginx (Port 80)                 │                  │
+│  │  ┌──────────────────────────────┐   │                  │
+│  │  │ Static File Serving          │   │                  │
+│  │  │ - React SPA                  │   │                  │
+│  │  │ - Assets (JS, CSS, images)   │   │                  │
+│  │  └──────────────────────────────┘   │                  │
+│  │                                      │                  │
+│  │  ┌──────────────────────────────┐   │                  │
+│  │  │ API Proxy (commented out)    │   │                  │
+│  │  │ /api → backend:8000          │   │                  │
+│  │  └──────────────────────────────┘   │                  │
+│  └──────────┬───────────────────────────┘                  │
+│             │                                                │
+│    ┌────────┴────────┬──────────────────┐                  │
+│    │                 │                  │                  │
+│    ▼                 ▼                  ▼                  │
+│  ┌─────────┐  ┌─────────────┐  ┌──────────────────┐      │
+│  │Frontend │  │   Backend   │  │    MongoDB       │      │
+│  │(React)  │  │  (FastAPI)  │  │   (Mongo:7)      │      │
+│  │         │  │  Port 8000  │  │   Port 27017     │      │
+│  │ - SPA   │  │             │  │                  │      │
+│  │ - Vite  │  │ - REST API  │  │ - users          │      │
+│  │ - TS    │  │ - JWT Auth  │  │ - trips          │      │
+│  │         │  │ - LangGraph │  │ - messages       │      │
+│  └─────────┘  │ - OpenAI    │  │ - trip_memory    │      │
+│               │             │  │ - plan_versions  │      │
+│               └──────┬──────┘  │ - conflicts      │      │
+│                      │         └──────────────────┘      │
+│                      │                                    │
+│                      │ OpenAI API (external)              │
+│                      ▼                                    │
+│              ┌─────────────────┐                         │
+│              │   OpenAI API    │                         │
+│              │  (gpt-4o-mini)  │                         │
+│              └─────────────────┘                         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Agent Workflow
+#### Railway Deployment (Production)
 
-The application uses LangGraph to create an AI agent workflow:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Internet / Users                         │
+└────────────────┬────────────────────────────────────────────┘
+                 │ HTTPS
+                 │
+    ┌────────────┴────────────┐
+    │                         │
+    ▼                         ▼
+┌──────────────┐      ┌──────────────┐
+│   Frontend   │      │   Backend    │
+│   Service    │      │   Service    │
+│              │      │              │
+│ - Railway    │      │ - Railway    │
+│   Platform   │      │   Platform   │
+│ - Nginx      │      │ - FastAPI    │
+│ - React SPA  │      │ - Uvicorn    │
+│              │      │              │
+│ Port: 80     │      │ Port: 8000   │
+└──────┬───────┘      └──────┬───────┘
+       │                     │
+       │ VITE_API_URL        │
+       │ (Backend Public URL)│
+       │                     │
+       └──────────┬──────────┘
+                  │
+                  ▼
+         ┌─────────────────┐
+         │   MongoDB       │
+         │   (Railway/     │
+         │    External)    │
+         │                 │
+         │ - users         │
+         │ - trips         │
+         │ - messages      │
+         │ - trip_memory   │
+         │ - plan_versions │
+         │ - conflicts     │
+         └─────────────────┘
+```
+
+**Key Differences:**
+- Railway deploys frontend and backend as **separate services**
+- Services don't share Docker networks
+- Frontend connects to backend via **public Railway URLs**
+- Set `VITE_API_URL` environment variable in Railway to backend's public URL
+
+### Agent Workflow (LangGraph)
+
+The application uses LangGraph to orchestrate an AI agent workflow:
 
 ```
 User Message
     │
     ▼
-┌─────────────────┐
-│  Parse Intent   │ ── Extract structured data (destinations, dates, budget, etc.)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Create Task Plan│ ── Generate ordered tasks (flights, hotels, itinerary)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│Check Clarification│ ── Determine if more info needed
-└────────┬────────┘
-         │
-         ├─ Yes → Return clarification question
-         │
-         └─ No ──►
-                  │
-                  ▼
+                ┌────────────────┐
+                │  parse_intent  │
+                │                │
+                │ - Extract      │
+                │   destinations │
+                │ - Extract dates│
+                │ - Extract      │
+                │   budget       │
+                │ - Extract      │
+                │   group size   │
+                │ - Determine    │
+                │   requested    │
+                │   tasks        │
+                └────────┬───────┘
+                         │
+                         ▼
+                ┌────────────────┐
+                │create_task_plan│
+                │                │
+                │ - Generate     │
+                │   task list    │
+                │ - Set priority │
+                │ - Set          │
+                │   dependencies │
+                │ - Check if     │
+                │   clarification│
+                │   needed       │
+                └────────┬───────┘
+                         │
+                         ▼
+                ┌────────────────┐
+                │check_clarifica │
+                │     tion       │
+                │                │
+                │ - Check if     │
+                │   more info    │
+                │   needed       │
+                └────────┬───────┘
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+        YES ──┤                     ├─── NO
+              │                     │
+              ▼                     ▼
+    ┌────────────────┐    ┌────────────────┐
+    │      END       │    │execute_task_   │
+    │                │    │     plan       │
+    │ Return         │    │                │
+    │ Clarification  │    │ - Search       │
+    │ Question       │    │   flights      │
+    └────────────────┘    │ - Search       │
+                          │   hotels       │
+                          │ - Get weather  │
+                          │ - Plan days    │
+                          └────────┬───────┘
+                                   │
+                                   ▼
+                          ┌────────────────┐
+                          │synthesize_     │
+                          │   response     │
+                          │                │
+                          │ - Generate     │
+                          │   natural      │
+                          │   language     │
+                          │   response     │
+                          │ - Format for   │
+                          │   user         │
+                          └────────┬───────┘
+                                   │
+                                   ▼
+                                  END
+```
+
+**Workflow Details:**
+1. **parse_intent**: Uses OpenAI with JSON schema to extract structured trip data
+2. **create_task_plan**: Generates ordered task list based on requested actions
+3. **check_clarification**: Determines if critical information is missing
+4. **execute_task_plan**: Executes tasks in priority order (currently stubbed for external APIs)
+5. **synthesize_response**: Generates human-readable response from task results
+
+### Request Flow
+
+#### User Message Flow
+
+```
            ┌──────────────┐
-           │Execute Tasks │ ── Run planned tasks (stubbed for external APIs)
+│    User      │
+│   Browser    │
            └──────┬───────┘
                   │
-                  ▼
-           ┌──────────────┐
-           │Synthesize    │ ── Generate natural language response
-           │Response      │
-           └──────────────┘
+       │ 1. User types message
+       ▼
+┌─────────────────────────────────────┐
+│  React ChatPanel Component          │
+│  - Captures user input              │
+│  - Validates input                  │
+└──────┬──────────────────────────────┘
+       │
+       │ 2. POST /trips/{id}/messages
+       │    Headers: Authorization: Bearer <token>
+       │    Body: { type: "human", content: "..." }
+       ▼
+┌─────────────────────────────────────┐
+│  FastAPI Backend                    │
+│  /routers/messages.py               │
+│  - Validates JWT token              │
+│  - Checks trip permissions          │
+│  - Saves message to MongoDB         │
+└──────┬──────────────────────────────┘
+       │
+       │ 3. Trigger agent workflow
+       │    POST /agents/plan
+       ▼
+┌─────────────────────────────────────┐
+│  LangGraph Workflow                 │
+│  /agents/langgraph_workflow.py      │
+│  - Parse intent                      │
+│  - Create task plan                  │
+│  - Execute tasks (if no clarification)│
+│  - Synthesize response               │
+└──────┬──────────────────────────────┘
+       │
+       │ 4. Save agent response
+       │    POST /trips/{id}/messages
+       │    { type: "agent", content: "..." }
+       ▼
+┌─────────────────────────────────────┐
+│  Update Trip Memory (if applicable) │
+│  /routers/memory.py                 │
+│  - Extract trip details             │
+│  - Update confidence scores         │
+│  - Store sources                    │
+└──────┬──────────────────────────────┘
+       │
+       │ 5. Update Plan (if generated)
+       │    POST /trips/{id}/plan
+       │    { version: N, itinerary: {...} }
+       ▼
+┌─────────────────────────────────────┐
+│  Frontend Polls/Updates             │
+│  - Refresh messages list            │
+│  - Update memory panel              │
+│  - Update plan panel                │
+└─────────────────────────────────────┘
 ```
 
-### Data Flow
+#### Authentication Flow
 
 ```
-User Message → Chat Interface → Backend API → Agent Workflow
-                                                      │
-                                                      ▼
-Trip Memory ← Memory Service ← Agent Response ← Task Execution
-     │
-     │
-     ▼
-Plan Updates → Plan Service → UI Updates
+┌──────────────┐
+│    User      │
+└──────┬───────┘
+       │
+       │ 1. POST /auth/login
+       │    username=email&password=pass
+       ▼
+┌─────────────────────────────────────┐
+│  Backend /routers/auth.py           │
+│  - Validate credentials              │
+│  - Check password hash               │
+│  - Generate JWT tokens               │
+└──────┬──────────────────────────────┘
+       │
+       │ 2. Return tokens
+       │    { access_token, refresh_token }
+       ▼
+┌─────────────────────────────────────┐
+│  Frontend AuthContext               │
+│  - Store tokens in localStorage     │
+│  - Set Authorization header         │
+│  - Redirect to trips page           │
+└──────┬──────────────────────────────┘
+       │
+       │ 3. Subsequent requests
+       │    Include: Authorization: Bearer <token>
+       ▼
+┌─────────────────────────────────────┐
+│  Backend Middleware                 │
+│  - Verify JWT signature             │
+│  - Check expiration                 │
+│  - Extract user_id                  │
+│  - Attach to request                │
+└─────────────────────────────────────┘
 ```
 
-### Database Schema
+### MongoDB Schema
 
-#### Collections
+#### Database: `nomadsync`
 
-- **users**: User accounts and authentication
-  - `userId`, `email`, `password_hash`, `name`, `avatar_emoji`
+**Collection: `users`**
+```javascript
+{
+  "_id": ObjectId("..."),           // Unique user ID
+  "email": "user@example.com",      // Unique, indexed
+  "password_hash": "$2b$12$...",    // bcrypt hashed password
+  "name": "John Doe",               // Optional display name
+  "avatar_emoji": "😊",             // User avatar emoji
+  "created_at": ISODate("..."),     // Account creation timestamp
+  "updated_at": ISODate("...")      // Last update timestamp
+}
+```
 
-- **trips**: Trip metadata and settings
-  - `tripId`, `title`, `destination`, `dates`, `status`, `readiness`, `members[]`
+**Indexes:**
+- `{ email: 1 }` - Unique index
 
-- **messages**: Chat messages
-  - `_id`, `tripId`, `authorId`, `type` (human/agent/conflict), `content`, `conflictId`
+**Collection: `trips`**
+```javascript
+{
+  "_id": ObjectId("..."),           // Unique trip ID
+  "title": "Japan Adventure",       // Trip title
+  "destination": "Tokyo, Japan",    // Optional destination
+  "dates": {                        // Optional date range
+    "start": ISODate("2024-03-15"),
+    "end": ISODate("2024-03-22")
+  },
+  "status": "draft",                // "draft" | "planned" | "booked"
+  "readiness": 75,                  // 0-100 readiness score
+  "cover_image": "url...",          // Optional cover image URL
+  "members": [                      // Array of trip members
+    {
+      "userId": "user_id_1",        // Reference to users._id
+      "role": "owner"               // "owner" | "editor" | "viewer"
+    },
+    {
+      "userId": "user_id_2",
+      "role": "editor"
+    }
+  ],
+  "created_at": ISODate("..."),
+  "updated_at": ISODate("...")
+}
+```
 
-- **trip_memory**: Extracted trip information
-  - `_id`, `tripId`, `destination`, `dates`, `budget`, `pace`, `duration` (each with value, confidence, sources)
+**Indexes:**
+- `{ "members.userId": 1 }` - For finding user's trips
 
-- **plan_versions**: Generated trip plans
-  - `_id`, `tripId`, `version`, `itinerary`, `createdBy`, `createdAt`
+**Collection: `messages`**
+```javascript
+{
+  "_id": ObjectId("..."),           // Unique message ID
+  "tripId": "trip_id",              // Reference to trips._id, indexed
+  "authorId": "user_id",            // Reference to users._id (null for agent)
+  "type": "human",                  // "human" | "agent" | "conflict"
+  "content": "I want to visit Tokyo in March",  // Message content
+  "summary": "User wants Tokyo trip in March",  // Optional summary
+  "questions": ["When exactly in March?"],      // Optional follow-up questions
+  "has_view_plan": false,           // Whether message contains plan view action
+  "conflictId": "conflict_id",      // Reference to conflicts._id (if type=conflict)
+  "created_at": ISODate("...")      // Message timestamp, indexed for sorting
+}
+```
 
-- **conflicts**: Planning conflicts
-  - `_id`, `tripId`, `messageId`, `options[]` (with votes), `createdAt`
+**Indexes:**
+- `{ tripId: 1, created_at: -1 }` - For efficient message retrieval
+- `{ conflictId: 1 }` - For finding conflict messages
+
+**Collection: `trip_memory`**
+```javascript
+{
+  "_id": ObjectId("..."),           // Unique memory ID
+  "tripId": "trip_id",              // Reference to trips._id, unique index
+  "destination": {                  // Optional destination memory
+    "value": "Tokyo, Japan",
+    "confidence": 95,               // 0-100 confidence score
+    "sources": ["msg_id_1", "msg_id_2"]  // Message IDs that contributed
+  },
+  "dates": {                        // Optional dates memory
+    "value": "March 15-22, 2024",
+    "confidence": 88,
+    "sources": ["msg_id_1"]
+  },
+  "budget": {                       // Optional budget memory
+    "value": "$3000 per person",
+    "confidence": 75,
+    "sources": ["msg_id_3"]
+  },
+  "pace": {                         // Optional pace memory (fast/relaxed)
+    "value": "fast-paced",
+    "confidence": 80,
+    "sources": ["msg_id_2"]
+  },
+  "duration": {                     // Optional duration memory
+    "value": "7 days",
+    "confidence": 90,
+    "sources": ["msg_id_1"]
+  },
+  "updated_at": ISODate("...")      // Last memory update timestamp
+}
+```
+
+**Indexes:**
+- `{ tripId: 1 }` - Unique index (one memory per trip)
+
+**Collection: `plan_versions`**
+```javascript
+{
+  "_id": ObjectId("..."),           // Unique plan version ID
+  "tripId": "trip_id",              // Reference to trips._id, indexed
+  "version": 1,                     // Version number (1, 2, 3, ...)
+  "itinerary": {                    // Flexible itinerary structure
+    "day_1": {
+      "title": "Arrival in Tokyo",
+      "activities": [
+        "Arrive at Narita Airport",
+        "Check into hotel",
+        "Evening stroll"
+      ],
+      "cost": 180
+    },
+    "day_2": { ... },
+    // ... more days
+    "budget": {                     // Optional budget breakdown
+      "total": 1200,
+      "accommodation": 400,
+      "activities": 300,
+      "food": 350,
+      "transport": 150
+    }
+  },
+  "created_by": "agent",            // "agent" | user_id
+  "created_at": ISODate("...")      // Version creation timestamp
+}
+```
+
+**Indexes:**
+- `{ tripId: 1, version: -1 }` - For efficient version retrieval (latest first)
+- `{ tripId: 1, created_at: -1 }` - Alternative query pattern
+
+**Collection: `conflicts`**
+```javascript
+{
+  "_id": ObjectId("..."),           // Unique conflict ID
+  "tripId": "trip_id",              // Reference to trips._id
+  "messageId": "message_id",        // Reference to messages._id
+  "options": [                      // Array of conflict options
+    {
+      "key": "a",                   // Option identifier
+      "title": "Stay in Shibuya",
+      "description": "Central location, vibrant area",
+      "votes": [                    // Array of votes
+        {
+          "userId": "user_id_1",
+          "at": ISODate("...")
+        },
+        {
+          "userId": "user_id_2",
+          "at": ISODate("...")
+        }
+      ]
+    },
+    {
+      "key": "b",
+      "title": "Stay in Shinjuku",
+      "description": "Business district, quieter",
+      "votes": [
+        {
+          "userId": "user_id_3",
+          "at": ISODate("...")
+        }
+      ]
+    }
+  ],
+  "created_at": ISODate("...")      // Conflict creation timestamp
+}
+```
+
+**Indexes:**
+- `{ tripId: 1, created_at: -1 }` - For finding trip conflicts
+- `{ messageId: 1 }` - For finding conflict by message
+
+### Data Relationships
+
+```
+users (1) ──────< (many) trips.members
+  │
+  │ (1)
+  │
+  └─────< (many) messages.authorId
+
+trips (1) ──────< (many) messages.tripId
+  │
+  │ (1)
+  │
+  └─────< (1) trip_memory.tripId
+
+trips (1) ──────< (many) plan_versions.tripId
+
+trips (1) ──────< (many) conflicts.tripId
+
+messages (1) ────< (0 or 1) conflicts.messageId
+
+conflicts (1) ────< (0 or many) messages.conflictId
+```
+
+### Component Structure
+
+#### Frontend Components
+
+```
+App.tsx (Root Component)
+│
+├── LoginPage.tsx
+│   └── Authentication UI
+│       ├── Registration form
+│       └── Login form (OAuth2 compatible)
+│
+├── ProtectedRoute.tsx
+│   └── Route guard (checks authentication)
+│
+├── TripsPage.tsx (Dashboard)
+│   ├── Trip cards grid
+│   ├── Search and filter
+│   ├── "New Trip" button
+│   └── Trip status indicators
+│
+└── TripPlanner.tsx (Main Planner View)
+    │
+    ├── TripSidebar.tsx (Left Panel)
+    │   ├── Trip info display
+    │   ├── Trip dates
+    │   ├── Members list
+    │   ├── Readiness indicator
+    │   └── Trip actions
+    │
+    ├── ChatPanel.tsx (Center Panel)
+    │   ├── MessageList
+    │   │   ├── HumanMessage (user messages)
+    │   │   ├── AgentMessage (AI responses)
+    │   │   └── ConflictMessage (voting UI)
+    │   ├── MessageInput (text area + send button)
+    │   └── Loading states
+    │
+    └── MemoryPlanPanel.tsx (Right Panel)
+        ├── Tabs (Memory | Plan)
+        │
+        ├── Memory Tab
+        │   ├── Destination field (with confidence)
+        │   ├── Dates field (with confidence)
+        │   ├── Budget field (with confidence)
+        │   ├── Pace field (with confidence)
+        │   └── Duration field (with confidence)
+        │
+        └── Plan Tab
+            ├── Version selector
+            ├── Budget summary
+            ├── Day-by-day itinerary
+            │   ├── Day title
+            │   ├── Activities list
+            │   └── Day cost
+            └── "Compare versions" button (future)
+```
 
 ### Component Structure
 
@@ -779,7 +1238,121 @@ npm test -- --watch
 
 ## 🚀 Deployment
 
-### Docker Production Build
+### Railway Deployment (Recommended)
+
+Railway is recommended for production deployments. Services are deployed separately as independent services.
+
+#### Prerequisites
+
+1. **Railway Account**: Sign up at [railway.app](https://railway.app)
+2. **GitHub Repository**: Push your code to GitHub
+3. **MongoDB**: Use Railway's MongoDB service or external MongoDB Atlas
+
+#### Deployment Steps
+
+##### 1. Deploy Backend Service
+
+1. **Create New Service** in Railway dashboard
+2. **Connect GitHub repository** and select branch
+3. **Configure Service**:
+   - **Root Directory**: `backend/`
+   - **Build Command**: (Railway auto-detects from `Dockerfile`)
+   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+4. **Set Environment Variables**:
+   ```bash
+   MONGODB_URI=mongodb://your-mongo-uri
+   MONGODB_DB=nomadsync
+   JWT_SECRET=<generate-strong-secret>
+   JWT_ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=15
+   REFRESH_TOKEN_EXPIRE_DAYS=30
+   CORS_ORIGINS=https://your-frontend-domain.railway.app,http://localhost:5173
+   OPENAI_API_KEY=sk-...
+   OPENAI_MODEL=gpt-4o-mini
+   ```
+
+5. **Deploy**: Railway will auto-deploy on git push
+
+##### 2. Deploy Frontend Service
+
+1. **Create New Service** in Railway dashboard
+2. **Connect GitHub repository** (same repo)
+3. **Configure Service**:
+   - **Root Directory**: `/` (project root)
+   - **Build Command**: `npm ci && npm run build`
+   - **Start Command**: (uses `nginx` in Dockerfile)
+
+4. **Set Environment Variables**:
+   ```bash
+   VITE_API_URL=https://your-backend-service.railway.app
+   ```
+
+5. **Deploy**: Railway will auto-deploy on git push
+
+#### Railway Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Railway Platform                      │
+│                                                         │
+│  ┌──────────────┐         ┌──────────────┐            │
+│  │   Frontend   │         │   Backend    │            │
+│  │   Service    │         │   Service    │            │
+│  │              │         │              │            │
+│  │ Public URL:  │         │ Public URL:  │            │
+│  │ *.railway.app│         │ *.railway.app│            │
+│  │              │         │              │            │
+│  │ - Nginx      │         │ - FastAPI    │            │
+│  │ - React SPA  │         │ - Uvicorn    │            │
+│  │              │         │ - Port: 8000 │            │
+│  │ Port: 80     │         │              │            │
+│  └──────┬───────┘         └──────┬───────┘            │
+│         │                        │                     │
+│         │ VITE_API_URL           │                     │
+│         │ (Backend Public URL)   │                     │
+│         │                        │                     │
+│         └──────────┬─────────────┘                     │
+│                    │                                    │
+│                    ▼                                    │
+│         ┌──────────────────────┐                       │
+│         │   MongoDB Service    │                       │
+│         │   (Railway or Atlas) │                       │
+│         │                      │                       │
+│         │ - Auto-configured    │                       │
+│         │ - Connection URI     │                       │
+│         │   provided           │                       │
+│         └──────────────────────┘                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Important Notes:**
+- Frontend connects directly to backend via **public URLs** (not Docker networking)
+- Set `VITE_API_URL` to backend's Railway public URL
+- CORS must include frontend's Railway URL in `CORS_ORIGINS`
+- MongoDB can be Railway's MongoDB service or external Atlas instance
+
+#### Railway Environment Variables
+
+**Backend Service:**
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `MONGODB_URI` | ✅ | MongoDB connection string | `mongodb://mongo...` |
+| `MONGODB_DB` | ❌ | Database name | `nomadsync` |
+| `JWT_SECRET` | ✅ | Secret for JWT tokens | `openssl rand -hex 32` |
+| `JWT_ALGORITHM` | ❌ | JWT algorithm | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | ❌ | Access token TTL | `15` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | ❌ | Refresh token TTL | `30` |
+| `CORS_ORIGINS` | ✅ | Allowed origins (comma-separated) | `https://*.railway.app,http://localhost:5173` |
+| `OPENAI_API_KEY` | ✅ | OpenAI API key | `sk-...` |
+| `OPENAI_MODEL` | ❌ | OpenAI model | `gpt-4o-mini` |
+
+**Frontend Service:**
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `VITE_API_URL` | ✅ | Backend API public URL | `https://backend-xxx.railway.app` |
+
+### Docker Production Build (Local/Private Server)
 
 1. **Build production images**
    ```bash
