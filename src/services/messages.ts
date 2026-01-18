@@ -14,7 +14,7 @@ export interface Message {
 }
 
 export interface CreateMessageData {
-  type: 'human';
+  type: 'human' | 'agent';
   content: string;
   summary?: string;
   questions?: string[];

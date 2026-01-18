@@ -12,7 +12,7 @@ class MessageBase(BaseModel):
 
 
 class MessageCreate(MessageBase):
-    type: str = Field(default="human", pattern="^(human)$")  # Only humans can create
+    type: str = Field(default="human", pattern="^(human|agent)$")  # Humans or agent can create
 
 
 class MessageInDB(MessageBase):

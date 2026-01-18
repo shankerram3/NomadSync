@@ -50,7 +50,7 @@ export function MemoryPlanPanel({ activeTab, setActiveTab, tripMemory, planVersi
         {activeTab === 'memory' ? (
           <MemoryView tripMemory={tripMemory} />
         ) : (
-          <PlanView planVersion={planVersion?.version || 1} />
+          <PlanView planVersion={planVersion} />
         )}
       </div>
     </div>
@@ -160,7 +160,7 @@ function MemoryView({ tripMemory }: { tripMemory: TripMemory | null }) {
   );
 }
 
-function PlanView({ planVersion }: { planVersion: number }) {
+function PlanView({ planVersion }: { planVersion: PlanVersion | null }) {
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
 
   const toggleDay = (day: number) => {
@@ -169,7 +169,132 @@ function PlanView({ planVersion }: { planVersion: number }) {
     );
   };
 
-  const itinerary = [
+  // Parse itinerary from planVersion
+  const parseItinerary = (): Array<{
+    day: number;
+    title: string;
+    activities: string[];
+    cost: string;
+  }> => {
+    if (!planVersion?.itinerary) {
+      return [];
+    }
+
+    const itinerary: Array<{
+      day: number;
+      title: string;
+      activities: string[];
+      cost: string;
+    }> = [];
+
+    // Handle different itinerary structures
+    const itin = planVersion.itinerary;
+
+    // Structure 1: { day_1: {...}, day_2: {...} }
+    if (itin && typeof itin === 'object') {
+      Object.keys(itin).forEach((key) => {
+        if (key.startsWith('day_') || key.startsWith('Day_')) {
+          const dayNum = parseInt(key.replace(/day_/i, ''), 10);
+          const dayData = itin[key] as any;
+          if (dayData && dayNum) {
+            itinerary.push({
+              day: dayNum,
+              title: dayData.title || `Day ${dayNum}`,
+              activities: Array.isArray(dayData.activities) 
+                ? dayData.activities 
+                : dayData.activities 
+                  ? [dayData.activities] 
+                  : [],
+              cost: dayData.cost || dayData.budget || '$0',
+            });
+          }
+        }
+      });
+    }
+
+    // Structure 2: { days: [{ day: 1, ... }] }
+    if ((itin as any)?.days && Array.isArray((itin as any).days)) {
+      return (itin as any).days.map((day: any, index: number) => ({
+        day: day.day || index + 1,
+        title: day.title || `Day ${day.day || index + 1}`,
+        activities: Array.isArray(day.activities) ? day.activities : [],
+        cost: day.cost || day.budget || '$0',
+      }));
+    }
+
+    // Structure 3: Array format
+    if (Array.isArray(itin)) {
+      return itin.map((day: any, index: number) => ({
+        day: day.day || index + 1,
+        title: day.title || `Day ${index + 1}`,
+        activities: Array.isArray(day.activities) ? day.activities : [],
+        cost: day.cost || day.budget || '$0',
+      }));
+    }
+
+    // Sort by day number
+    return itinerary.sort((a, b) => a.day - b.day);
+  };
+
+  const itinerary = parseItinerary();
+  
+  // Calculate total budget
+  const calculateTotalBudget = () => {
+    if (!planVersion?.itinerary) return { total: 0, breakdown: {} };
+    
+    const itin = planVersion.itinerary;
+    let total = 0;
+    const breakdown: Record<string, number> = {
+      accommodation: 0,
+      activities: 0,
+      food: 0,
+      transport: 0,
+    };
+
+    // Try to extract budget from itinerary
+    if ((itin as any).budget) {
+      const budget = (itin as any).budget;
+      if (typeof budget === 'object') {
+        total = budget.total || 0;
+        breakdown.accommodation = budget.accommodation || 0;
+        breakdown.activities = budget.activities || 0;
+        breakdown.food = budget.food || 0;
+        breakdown.transport = budget.transport || 0;
+      }
+    }
+
+    // Fallback: sum day costs
+    if (total === 0 && itinerary.length > 0) {
+      total = itinerary.reduce((sum, day) => {
+        const cost = parseFloat(day.cost.replace(/[^0-9.]/g, '')) || 0;
+        return sum + cost;
+      }, 0);
+    }
+
+    return { total, breakdown };
+  };
+
+  const budget = calculateTotalBudget();
+
+  if (!planVersion) {
+    return (
+      <div className="p-4">
+        <div className="text-center text-gray-500 text-sm py-8">
+          No plan available yet. Start chatting to generate a plan.
+        </div>
+      </div>
+    );
+  }
+
+  if (itinerary.length === 0) {
+    return (
+      <div className="p-4">
+        <div className="text-center text-gray-500 text-sm py-8">
+          Plan is being generated. Check back soon!
+        </div>
+      </div>
+    );
+  }
     {
       day: 1,
       title: 'Arrival in Tokyo',
@@ -243,8 +368,10 @@ function PlanView({ planVersion }: { planVersion: number }) {
       {/* Version Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-medium text-gray-900">6-Day Itinerary</h3>
-          <p className="text-xs text-gray-500">Version {planVersion}</p>
+          <h3 className="text-sm font-medium text-gray-900">
+            {itinerary.length}-Day Itinerary
+          </h3>
+          <p className="text-xs text-gray-500">Version {planVersion.version}</p>
         </div>
         <button className="text-xs text-blue-600 hover:text-blue-700">
           Compare versions
@@ -252,27 +379,37 @@ function PlanView({ planVersion }: { planVersion: number }) {
       </div>
 
       {/* Budget Summary */}
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-900">Estimated Total</span>
-          <span className="text-lg font-semibold text-blue-600">$1,200</span>
+      {budget.total > 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-900">Estimated Total</span>
+            <span className="text-lg font-semibold text-blue-600">${budget.total.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-gray-600">Per person, excluding flights</p>
+          {(budget.breakdown.accommodation > 0 || budget.breakdown.activities > 0 || budget.breakdown.food > 0) && (
+            <div className="mt-3 pt-3 border-t border-blue-200">
+              {budget.breakdown.accommodation > 0 && (
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Accommodation</span>
+                  <span>${budget.breakdown.accommodation}</span>
+                </div>
+              )}
+              {budget.breakdown.activities > 0 && (
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Activities</span>
+                  <span>${budget.breakdown.activities}</span>
+                </div>
+              )}
+              {(budget.breakdown.food > 0 || budget.breakdown.transport > 0) && (
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Food & Transport</span>
+                  <span>${(budget.breakdown.food + budget.breakdown.transport)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <p className="text-xs text-gray-600">Per person, excluding flights</p>
-        <div className="mt-3 pt-3 border-t border-blue-200">
-          <div className="flex justify-between text-xs text-gray-600 mb-1">
-            <span>Accommodation</span>
-            <span>$600</span>
-          </div>
-          <div className="flex justify-between text-xs text-gray-600 mb-1">
-            <span>Activities</span>
-            <span>$400</span>
-          </div>
-          <div className="flex justify-between text-xs text-gray-600">
-            <span>Food & Transport</span>
-            <span>$200</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Day-by-Day Itinerary */}
       <div className="space-y-2">
