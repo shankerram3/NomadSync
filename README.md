@@ -49,13 +49,17 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **Flight Booking Agent**: Integrated Amadeus API for real-time flight search
 - **Smart Airport Resolution**: Automatic airport code lookup from city names
 - **Agent Workflow**: LangGraph-powered AI agent with dynamic task planning
+- **Real-time Collaboration**: Polling-based live updates for messages, plans, and votes
+- **Plan Version History**: Timeline view of all plan versions with creation metadata
+- **Plan Diff View**: Visual comparison showing changes between plan versions
+- **Plan Rollback**: Restore previous plan versions with one click
+- **Agent-Plan Linking**: Agent messages automatically linked to generated plan versions
 
 ### 🚧 In Progress
 
-- **Dynamic Plan Generation**: Real-time plan updates from agent responses
 - **Memory Auto-updates**: Automatic trip memory updates from conversations
-- **Real-time Collaboration**: WebSocket/SSE for live updates
 - **Additional Tool Integrations**: Hotels, weather, attractions
+- **WebSocket/SSE**: Upgrade from polling to WebSocket for lower latency
 
 ### 📋 Planned
 
@@ -292,8 +296,53 @@ When there are disagreements or choices:
 ### Plan Versions
 
 - Each plan update creates a new version
-- View all versions via the plan history
+- View all versions via the "History" tab in the plan panel
 - Compare different versions to see what changed
+- **Version History**: Browse timeline of all plan versions with creation dates and creators
+- **Diff View**: See exactly what changed between versions (added/removed/modified days)
+- **Rollback**: Restore any previous version with one click - creates a new version from the selected one
+- **Agent Links**: Agent messages that generated plans are linked and show a "Plan Generated" badge
+
+### Real-time Collaboration
+
+NomadSync provides real-time updates for collaborative planning:
+
+- **Live Message Updates**: New messages appear automatically without page refresh
+- **Plan Version Notifications**: Get notified when new plan versions are created
+- **Vote Updates**: See vote counts update in real-time as team members vote
+- **Visual Indicators**: Connection status indicator shows when real-time updates are active
+- **Polling Service**: Efficient polling system checks for updates every 3 seconds
+
+The real-time system automatically starts when you open a trip and stops when you navigate away, ensuring efficient resource usage.
+
+### Plan Version Management
+
+#### Viewing Version History
+
+1. **Open History Tab**: Click the "History" tab in the right panel
+2. **Browse Versions**: See all plan versions in chronological order
+3. **View Details**: Each version shows creation date, creator (AI or user), and version number
+4. **Current Version**: The active version is highlighted in green
+
+#### Comparing Versions
+
+1. **Select a Version**: Click on any version in the history
+2. **Compare Mode**: Click the "Compare" button or eye icon
+3. **View Diff**: See visual differences:
+   - **Green**: Added days/activities
+   - **Red**: Removed days/activities
+   - **Yellow**: Modified days with activity changes
+4. **Stop Comparing**: Click "Stop Comparing" to exit comparison mode
+
+#### Rolling Back to a Previous Version
+
+1. **Open History**: Navigate to the History tab
+2. **Select Version**: Click on the version you want to restore
+3. **Rollback**: Click the rollback icon (↻) on the version card
+4. **Confirm**: A new version is created from the selected version
+5. **View Plan**: Automatically switches to the Plan tab to show the restored version
+
+**Note**: Rollback creates a new version rather than deleting later versions, preserving full history.
 
 ### Flight Booking Agent
 
@@ -444,9 +493,12 @@ Content-Type: application/json
 
 {
   "type": "human",
-  "content": "I want to visit Tokyo in March"
+  "content": "I want to visit Tokyo in March",
+  "plan_version_id": "optional-plan-version-id"
 }
 ```
+
+**Note**: `plan_version_id` is used to link agent messages to the plan versions they generate.
 
 ### Memory
 
@@ -505,6 +557,57 @@ Content-Type: application/json
 }
 ```
 
+#### List Plan Versions
+```http
+GET /trips/{trip_id}/plan/versions
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "...",
+    "trip_id": "...",
+    "version": 3,
+    "itinerary": {...},
+    "created_by": "agent",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "...",
+    "version": 2,
+    "created_by": "user_id",
+    "created_at": "2024-01-14T15:20:00Z"
+  }
+]
+```
+
+#### Rollback to Plan Version
+```http
+POST /trips/{trip_id}/plan/rollback
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "version": 2
+}
+```
+
+**Response:**
+```json
+{
+  "id": "...",
+  "trip_id": "...",
+  "version": 4,
+  "itinerary": {...},
+  "created_by": "rollback:user_id",
+  "created_at": "2024-01-15T11:00:00Z"
+}
+```
+
+**Note**: Rollback creates a new version (version 4 in this example) from the specified version (version 2), preserving all history.
+
 ### Conflicts
 
 #### Get Conflicts
@@ -545,6 +648,7 @@ Content-Type: application/json
 {
   "clarification": null,
   "response": "I found 10 flight options from New York to Tokyo...",
+  "plan_version_id": "plan_version_id_if_generated",
   "intent": {
     "destinations": ["Tokyo"],
     "origin": "New York",
@@ -563,6 +667,8 @@ Content-Type: application/json
   }
 }
 ```
+
+**Note**: `plan_version_id` is returned when the agent generates a new plan version, allowing frontend to link the agent message to the plan.
 
 **Full API Documentation**: Visit `http://localhost:8000/docs` when the backend is running for interactive API documentation with Swagger UI.
 
@@ -1184,6 +1290,7 @@ graph TB
   "questions": ["When exactly in March?"],      // Optional follow-up questions
   "has_view_plan": false,           // Whether message contains plan view action
   "conflictId": "conflict_id",      // Reference to conflicts._id (if type=conflict)
+  "planVersionId": "plan_version_id", // Reference to plan_versions._id (if agent generated plan)
   "created_at": ISODate("...")      // Message timestamp, indexed for sorting
 }
 ```
@@ -1505,6 +1612,8 @@ NomadSync/
 │   │   │   ├── TripSidebar.tsx
 │   │   │   ├── ChatPanel.tsx
 │   │   │   ├── MemoryPlanPanel.tsx
+│   │   │   ├── PlanVersionHistory.tsx
+│   │   │   ├── RealtimeIndicator.tsx
 │   │   │   └── ProtectedRoute.tsx
 │   │   ├── contexts/            # React contexts
 │   │   │   └── AuthContext.tsx
@@ -1937,7 +2046,7 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 
 ## 📊 Current Status
 
-### Completed (~75%)
+### Completed (~85%)
 - ✅ Core infrastructure and setup
 - ✅ Authentication and authorization
 - ✅ Trip CRUD operations
@@ -1951,17 +2060,20 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 - ✅ Smart airport code resolution
 - ✅ Dynamic task planning
 - ✅ Navigation improvements
+- ✅ Real-time collaboration (polling-based)
+- ✅ Plan version history and timeline
+- ✅ Plan diff view and comparison
+- ✅ Plan rollback functionality
+- ✅ Agent message-plan linking
 
-### In Progress (~20%)
-- 🚧 Dynamic plan generation
+### In Progress (~10%)
 - 🚧 Memory auto-updates
 - 🚧 Additional tool integrations (hotels, weather, attractions)
-- 🚧 Real-time collaboration features
+- 🚧 WebSocket/SSE upgrade for lower latency
 
 ### Planned (~5%)
-- 📋 Advanced plan features (lock, compare, regenerate)
+- 📋 Advanced plan features (lock, regenerate with specific changes)
 - 📋 Enhanced conflict resolution UI
-- 📋 WebSocket/SSE for real-time updates
 - 📋 Testing suite
 - 📋 Tool marketplace/plugins
 
