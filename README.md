@@ -41,21 +41,30 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **Responsive UI**: Modern, clean interface built with React and Tailwind CSS
 - **Docker Support**: Full containerization for easy deployment
 - **Navigation**: Seamless navigation between trips dashboard and planner
+- **Dynamic Tooling System**: Flexible, extensible tool registry for agent capabilities
+- **Flight Booking Agent**: Integrated Amadeus API for real-time flight search
+- **Smart Airport Resolution**: Automatic airport code lookup from city names
+- **Agent Workflow**: LangGraph-powered AI agent with dynamic task planning
+- **Dynamic Tooling System**: Flexible, extensible tool registry for agent capabilities
+- **Flight Booking Agent**: Integrated Amadeus API for real-time flight search
+- **Smart Airport Resolution**: Automatic airport code lookup from city names
+- **Agent Workflow**: LangGraph-powered AI agent with dynamic task planning
 
 ### 🚧 In Progress
 
-- **Agent Workflow Integration**: Connecting LangGraph workflow to chat messages
 - **Dynamic Plan Generation**: Real-time plan updates from agent responses
 - **Memory Auto-updates**: Automatic trip memory updates from conversations
 - **Real-time Collaboration**: WebSocket/SSE for live updates
+- **Additional Tool Integrations**: Hotels, weather, attractions
 
 ### 📋 Planned
 
 - **External API Integrations**: 
-  - Flight search (Amadeus, Skyscanner)
   - Hotel booking (Booking.com, Expedia)
   - Weather forecasts (OpenWeatherMap)
   - Attractions and activities research (Google Places, TripAdvisor)
+  - Restaurant recommendations
+  - Route optimization
 - **Advanced Plan Features**: 
   - Lock plans to prevent changes
   - Compare plan versions side-by-side
@@ -84,6 +93,7 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **MongoDB** (native driver) - Async MongoDB driver
 - **LangGraph** - AI agent workflow orchestration (TypeScript implementation)
 - **OpenAI API** - LLM integration for AI agent
+- **Amadeus API** - Flight search and booking integration
 - **JWT** (jsonwebtoken) - Token-based authentication
 - **Zod** - TypeScript-first schema validation
 - **TypeScript** - Type-safe JavaScript
@@ -167,17 +177,15 @@ This is the easiest way to get started:
 
 3. **Create .env file**
    ```bash
-   cat > .env << EOF
-   MONGODB_URI=mongodb://localhost:27017
-   MONGODB_DB=nomadsync
-   JWT_SECRET=dev-secret-please-change-in-production
-   JWT_ALGORITHM=HS256
-   ACCESS_TOKEN_EXPIRE_MINUTES=60
-   REFRESH_TOKEN_EXPIRE_DAYS=7
-   OPENAI_API_KEY=your-openai-api-key
-   OPENAI_MODEL=gpt-4o-mini
-   CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-   EOF
+   cd backend
+   cp .env.example .env
+   # Edit .env and configure:
+   # - MONGODB_URI=mongodb://localhost:27017
+   # - JWT_SECRET (generate with: openssl rand -hex 32)
+   # - OPENAI_API_KEY (required for agent features)
+   # - AMADEUS_API_KEY (required for flight search)
+   # - AMADEUS_API_SECRET (required for flight search)
+   # - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
    ```
 
 4. **Start MongoDB** (if not using Docker)
@@ -200,9 +208,9 @@ This is the easiest way to get started:
 
 #### Frontend Setup
 
-1. **Navigate to project root**
+1. **Navigate to frontend directory**
    ```bash
-   cd ..
+   cd frontend
    ```
 
 2. **Install dependencies**
@@ -230,6 +238,21 @@ This is the easiest way to get started:
    npm run preview  # Preview production build
    ```
 
+#### Quick Start Script
+
+Alternatively, use the provided startup script:
+
+```bash
+# From project root
+./start-dev.sh
+```
+
+This script will:
+- Check and start MongoDB (via Docker if available)
+- Install dependencies if needed
+- Start both backend and frontend servers
+- Show combined logs
+
 ## 📖 Usage Guide
 
 ### Creating Your First Trip
@@ -242,8 +265,11 @@ This is the easiest way to get started:
 
 1. **Send Messages**: Type your trip requirements in natural language
    - Example: "I want to go to Japan for 7 days in March with a budget of $3000"
+   - Example: "Find flights from New York to Tokyo on March 15th"
+   - Example: "Search for flights from JFK to LAX for 2 people"
 2. **View Memory**: Check the "Trip Memory" tab to see what the AI has extracted
 3. **View Plans**: Switch to the "Plan" tab to see generated itineraries
+4. **Flight Search**: The agent automatically searches for flights when you mention travel dates and destinations
 
 ### Trip Memory
 
@@ -268,6 +294,40 @@ When there are disagreements or choices:
 - Each plan update creates a new version
 - View all versions via the plan history
 - Compare different versions to see what changed
+
+### Flight Booking Agent
+
+The AI agent can automatically search for flights when you mention travel plans:
+
+**Examples:**
+- "Find flights from New York to Tokyo on March 15th"
+- "I need to fly from JFK to LAX for 2 people"
+- "Search flights from San Francisco to Paris"
+
+**Features:**
+- **Smart Airport Resolution**: Automatically converts city names to airport codes
+- **Real-time Search**: Uses Amadeus API for live flight data
+- **Flexible Input**: Accepts airport codes (JFK, LAX) or city names (New York, Los Angeles)
+- **Round-trip Support**: Handles both one-way and round-trip flights
+- **Price Comparison**: Shows multiple options with prices and airlines
+
+**How it works:**
+1. You mention flight requirements in chat
+2. Agent extracts origin, destination, dates, and passengers
+3. System resolves airport codes (if needed)
+4. Searches Amadeus API for available flights
+5. Returns formatted results with prices and details
+
+### Dynamic Tooling System
+
+The agent uses a flexible tool registry system that allows new capabilities to be added easily:
+
+- **Self-registering Tools**: Tools automatically register when imported
+- **Metadata-driven**: Each tool includes descriptions, parameters, and examples
+- **LLM-aware**: Tools provide schemas for function calling
+- **Extensible**: Add new tools without modifying core code
+
+See [backend/DYNAMIC_TOOLING.md](backend/DYNAMIC_TOOLING.md) for details on creating new tools.
 
 ## 📡 API Documentation
 
@@ -468,14 +528,39 @@ Content-Type: application/json
 
 #### Run Agent Workflow
 ```http
-POST /agents/plan
+POST /api/agents/plan
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
-  "message": "Plan a 7-day trip to Tokyo",
+  "message": "Find flights from New York to Tokyo on March 15th",
+  "trip_id": "optional-trip-id",
   "trip_context": {...},
   "trip_memory": {...}
+}
+```
+
+**Response:**
+```json
+{
+  "clarification": null,
+  "response": "I found 10 flight options from New York to Tokyo...",
+  "intent": {
+    "destinations": ["Tokyo"],
+    "origin": "New York",
+    "start_date": "2024-03-15",
+    "requested_tasks": ["flights"]
+  },
+  "task_plan": {
+    "tasks": [...]
+  },
+  "completed_tasks": {
+    "search_flights": {
+      "status": "success",
+      "data": [...],
+      "count": 10
+    }
+  }
 }
 ```
 
@@ -1345,6 +1430,9 @@ App.tsx
 | `CORS_ORIGINS` | Comma-separated allowed origins | `http://localhost:5173,http://localhost:3000` |
 | `OPENAI_API_KEY` | OpenAI API key | Required for agent features |
 | `OPENAI_MODEL` | OpenAI model to use | `gpt-4o-mini` |
+| `AMADEUS_API_KEY` | Amadeus API key | Required for flight search |
+| `AMADEUS_API_SECRET` | Amadeus API secret | Required for flight search |
+| `AMADEUS_BASE_URL` | Amadeus API base URL | `https://test.api.amadeus.com` (test) or `https://api.amadeus.com` (production) |
 
 #### Frontend
 
@@ -1369,62 +1457,75 @@ All services communicate through a Docker network (`nomadsync-network`).
 ```
 NomadSync/
 ├── backend/
-│   ├── app/
+│   ├── src/
 │   │   ├── agents/          # LangGraph agent workflows
-│   │   │   └── langgraph_workflow.py
-│   │   ├── src/
-│   │   │   ├── models/          # Zod schemas and TypeScript types
-│   │   │   │   ├── user.ts
-│   │   │   │   ├── trip.ts
-│   │   │   │   ├── message.ts
-│   │   │   │   ├── memory.ts
-│   │   │   │   ├── plan.ts
-│   │   │   │   └── conflict.ts
-│   │   │   ├── routers/         # Express route handlers
-│   │   │   │   ├── auth.ts
-│   │   │   │   ├── trips.ts
-│   │   │   │   ├── messages.ts
-│   │   │   │   ├── memory.ts
-│   │   │   │   ├── plan.ts
-│   │   │   │   ├── conflicts.ts
-│   │   │   │   └── agent.ts
-│   │   │   ├── agents/          # Agent workflow
-│   │   │   │   └── langgraph_workflow.ts
-│   │   │   ├── utils/           # Utility functions
-│   │   │   │   ├── auth.ts
-│   │   │   │   └── trip_permissions.ts
-│   │   │   ├── config.ts        # Configuration
-│   │   │   ├── database.ts      # MongoDB connection
-│   │   │   └── server.ts        # Express app
+│   │   │   ├── langgraph_workflow.ts
+│   │   │   └── dynamic_task_planner.ts
+│   │   ├── models/          # Zod schemas and TypeScript types
+│   │   │   ├── user.ts
+│   │   │   ├── trip.ts
+│   │   │   ├── message.ts
+│   │   │   ├── memory.ts
+│   │   │   ├── plan.ts
+│   │   │   └── conflict.ts
+│   │   ├── routers/         # Express route handlers
+│   │   │   ├── auth.ts
+│   │   │   ├── trips.ts
+│   │   │   ├── messages.ts
+│   │   │   ├── memory.ts
+│   │   │   ├── plan.ts
+│   │   │   ├── conflicts.ts
+│   │   │   └── agent.ts
+│   │   ├── services/        # Business logic and external APIs
+│   │   │   ├── amadeus.ts   # Amadeus flight API client
+│   │   │   ├── flight_tools.ts
+│   │   │   ├── tool_registry.ts  # Dynamic tool registry
+│   │   │   ├── tool_loader.ts    # Tool auto-discovery
+│   │   │   └── tools/            # Registered tools
+│   │   │       └── flight_tool.ts
+│   │   ├── utils/           # Utility functions
+│   │   │   ├── auth.ts
+│   │   │   └── trip_permissions.ts
+│   │   ├── config.ts        # Configuration
+│   │   ├── database.ts      # MongoDB connection
+│   │   └── server.ts        # Express app
 │   ├── Dockerfile
 │   ├── package.json
 │   ├── tsconfig.json
+│   ├── .env.example
+│   ├── DYNAMIC_TOOLING.md   # Tool system documentation
 │   └── .dockerignore
-├── src/
-│   ├── components/          # React components
-│   │   ├── ui/              # shadcn/ui components
-│   │   ├── LoginPage.tsx
-│   │   ├── TripsPage.tsx
-│   │   ├── TripPlanner.tsx
-│   │   ├── TripSidebar.tsx
-│   │   ├── ChatPanel.tsx
-│   │   ├── MemoryPlanPanel.tsx
-│   │   └── ProtectedRoute.tsx
-│   ├── contexts/            # React contexts
-│   │   └── AuthContext.tsx
-│   ├── services/            # API service clients
-│   │   ├── auth.ts
-│   │   ├── trips.ts
-│   │   ├── messages.ts
-│   │   ├── memory.ts
-│   │   ├── plan.ts
-│   │   └── conflicts.ts
-│   ├── lib/                # Utilities
-│   │   └── api.ts
-│   ├── styles/             # CSS
-│   │   └── globals.css
-│   ├── App.tsx
-│   └── main.tsx
+├── frontend/
+│   ├── src/
+│   │   ├── components/          # React components
+│   │   │   ├── ui/              # shadcn/ui components
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── TripsPage.tsx
+│   │   │   ├── TripPlanner.tsx
+│   │   │   ├── TripSidebar.tsx
+│   │   │   ├── ChatPanel.tsx
+│   │   │   ├── MemoryPlanPanel.tsx
+│   │   │   └── ProtectedRoute.tsx
+│   │   ├── contexts/            # React contexts
+│   │   │   └── AuthContext.tsx
+│   │   ├── services/            # API service clients
+│   │   │   ├── auth.ts
+│   │   │   ├── trips.ts
+│   │   │   ├── messages.ts
+│   │   │   ├── memory.ts
+│   │   │   ├── plan.ts
+│   │   │   ├── conflicts.ts
+│   │   │   └── agent.ts
+│   │   ├── lib/                # Utilities
+│   │   │   └── api.ts
+│   │   ├── styles/             # CSS
+│   │   │   └── globals.css
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   └── tsconfig.json
 ├── docker-compose.yml
 ├── Dockerfile              # Frontend Dockerfile
 ├── nginx.conf
@@ -1531,6 +1632,9 @@ Railway is recommended for production deployments. The application uses a **sing
    CORS_ORIGINS=https://your-service.railway.app,http://localhost:5173
    OPENAI_API_KEY=sk-...
    OPENAI_MODEL=gpt-4o-mini
+   AMADEUS_API_KEY=your-amadeus-api-key
+   AMADEUS_API_SECRET=your-amadeus-api-secret
+   AMADEUS_BASE_URL=https://test.api.amadeus.com
    ```
 
 5. **Configure Public Networking**:
@@ -1604,6 +1708,9 @@ Railway is recommended for production deployments. The application uses a **sing
 | `CORS_ORIGINS` | ✅ | Allowed origins (comma-separated or JSON array) | `https://your-service.up.railway.app,http://localhost:5173` |
 | `OPENAI_API_KEY` | ✅ | OpenAI API key | `sk-...` |
 | `OPENAI_MODEL` | ❌ | OpenAI model | `gpt-4o-mini` |
+| `AMADEUS_API_KEY` | ✅ | Amadeus API key (for flight search) | Get from [Amadeus Developers](https://developers.amadeus.com/) |
+| `AMADEUS_API_SECRET` | ✅ | Amadeus API secret | Get from [Amadeus Developers](https://developers.amadeus.com/) |
+| `AMADEUS_BASE_URL` | ❌ | Amadeus API base URL | `https://test.api.amadeus.com` (test) or `https://api.amadeus.com` (production) |
 
 **Note:** `VITE_API_URL` is set to `/api` in the Dockerfile build, so no environment variable needed (frontend and backend are served from the same origin).
 
@@ -1830,7 +1937,7 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 
 ## 📊 Current Status
 
-### Completed (~60%)
+### Completed (~75%)
 - ✅ Core infrastructure and setup
 - ✅ Authentication and authorization
 - ✅ Trip CRUD operations
@@ -1838,21 +1945,25 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 - ✅ Memory and plan data models
 - ✅ Conflict resolution structure
 - ✅ Docker containerization
-- ✅ Agent workflow skeleton
+- ✅ Agent workflow integration
+- ✅ Dynamic tooling system
+- ✅ Flight booking agent (Amadeus API)
+- ✅ Smart airport code resolution
+- ✅ Dynamic task planning
 - ✅ Navigation improvements
 
-### In Progress (~30%)
-- 🚧 Agent workflow integration
+### In Progress (~20%)
 - 🚧 Dynamic plan generation
 - 🚧 Memory auto-updates
+- 🚧 Additional tool integrations (hotels, weather, attractions)
 - 🚧 Real-time collaboration features
 
-### Planned (~10%)
-- 📋 External API integrations (flights, hotels, weather)
+### Planned (~5%)
 - 📋 Advanced plan features (lock, compare, regenerate)
 - 📋 Enhanced conflict resolution UI
 - 📋 WebSocket/SSE for real-time updates
 - 📋 Testing suite
+- 📋 Tool marketplace/plugins
 
 ## 🤝 Contributing
 
@@ -1907,11 +2018,17 @@ Contributions are welcome! Please follow these steps:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 📚 Additional Documentation
+
+- **[AGENTIC_PLANNING.md](AGENTIC_PLANNING.md)** - Comprehensive guide to the AI agent system
+- **[backend/DYNAMIC_TOOLING.md](backend/DYNAMIC_TOOLING.md)** - Dynamic tooling system documentation
+
 ## 🙏 Acknowledgments
 
 - Built with [Express.js](https://expressjs.com/) - Fast, unopinionated Node.js web framework
 - UI components from [shadcn/ui](https://ui.shadcn.com/) - Beautiful React components
 - Agent workflows powered by [LangGraph](https://github.com/langchain-ai/langgraph) - AI agent orchestration
+- Flight data from [Amadeus API](https://developers.amadeus.com/) - Travel industry API
 - Icons from [Lucide](https://lucide.dev/) - Icon library
 
 ## 📧 Contact & Support

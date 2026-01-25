@@ -1,4 +1,4 @@
-import { MongoClient, Db, ServerApi } from 'mongodb';
+import { MongoClient, Db, ServerApiVersion } from 'mongodb';
 import { config } from './config.js';
 
 class Database {
@@ -10,9 +10,10 @@ const db = new Database();
 
 export async function connectToMongo(): Promise<void> {
   try {
-    const serverApi = new ServerApi('1');
     db.client = new MongoClient(config.mongodbUri, {
-      serverApi,
+      serverApi: {
+        version: ServerApiVersion.v1,
+      },
     });
     
     await db.client.connect();

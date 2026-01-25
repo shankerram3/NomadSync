@@ -140,9 +140,11 @@ EOF
 fi
 
 # Check if frontend node_modules exists
-if [ ! -d "node_modules" ]; then
-    print_warning "node_modules not found. Installing frontend dependencies..."
+if [ ! -d "frontend/node_modules" ]; then
+    print_warning "Frontend node_modules not found. Installing frontend dependencies..."
+    cd frontend
     npm install
+    cd ..
 fi
 
 # Check if backend node_modules exists
@@ -173,8 +175,10 @@ fi
 
 # Start frontend server
 print_info "Starting frontend server (Vite) on http://localhost:5173"
-npm run dev > frontend.log 2>&1 &
+cd frontend
+npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
+cd ..
 
 # Wait a moment for frontend to start
 sleep 2

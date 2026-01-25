@@ -39,12 +39,11 @@ export const authService = {
   },
 
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    // Express.js login endpoint expects form data
-    const formData = new FormData();
-    formData.append('username', credentials.email);
-    formData.append('password', credentials.password);
-
-    const response = await apiClient.postForm<AuthResponse>('/api/auth/login', formData);
+    // Backend expects JSON with username and password fields
+    const response = await apiClient.post<AuthResponse>('/api/auth/login', {
+      username: credentials.email,
+      password: credentials.password,
+    });
     if (response.access_token) {
       apiClient.setAccessToken(response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);

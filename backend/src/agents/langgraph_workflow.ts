@@ -55,13 +55,30 @@ function openaiClient(): OpenAI {
 }
 
 export async function parseIntent(state: ExecutionState): Promise<ExecutionState> {
+  // Load tools to get available capabilities for better intent parsing
+  await ensureToolsLoaded();
+  const { getAvailableToolsForLLM } = await import('../services/tool_loader.js');
+  const availableTools = getAvailableToolsForLLM();
+  
   const systemPrompt = `Extract structured trip planning details from the user's message. Return JSON only.
+
+Available tools/capabilities:
+${availableTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}
 
 Rules:
 - Convert relative dates to YYYY-MM-DD when possible.
 - If dates conflict with duration, keep dates and update duration_days.
 - Only add clarifications for critical missing info (dates, group size for booking).
-- If user says 'plan everything', set requested_tasks to flights, hotels, itinerary.`;
+- If user says 'plan everything', set requested_tasks to flights, hotels, itinerary.
+- Extract flight-specific information:
+  * origin: Departure city/airport (e.g., "New York", "JFK", "NYC")
+  * destination: Arrival city/airport (e.g., "Tokyo", "NRT")
+  * departure_date: Outbound flight date in YYYY-MM-DD
+  * return_date: Return flight date in YYYY-MM-DD (if round trip)
+  * passengers/group_size: Number of travelers
+- If user mentions "flight", "fly", "airplane", "book flight", automatically add "flights" to requested_tasks.
+- Extract airport codes or city names from messages like "fly from JFK to Tokyo" or "book flight NYC to LAX".
+- Be flexible with parameter extraction - infer missing values from context when possible.`;
 
   const client = openaiClient();
   const response = await client.chat.completions.create({
@@ -92,7 +109,36 @@ export async function createTaskPlan(state: ExecutionState): Promise<ExecutionSt
     return { ...state, task_plan: { tasks: [], clarification_required: false } };
   }
 
+  // Load tools to dynamically discover available capabilities
+  await ensureToolsLoaded();
+  const { findToolsForTask } = await import('../services/tool_loader.js');
+  const { createDynamicTasks, validateTaskParameters } = await import('./dynamic_task_planner.js');
+  
   const tasks: Task[] = [];
+  
+  // Try dynamic task creation first
+  try {
+    const dynamicTasks = createDynamicTasks(intent, tripMemory);
+    if (dynamicTasks.length > 0) {
+      // Validate and filter tasks
+      const validTasks = dynamicTasks.filter(task => {
+        const validation = validateTaskParameters(task, intent, tripMemory);
+        if (!validation.valid) {
+          console.warn(`[TASK_PLANNER] Task ${task.task_id} missing parameters: ${validation.missing.join(', ')}`);
+        }
+        return validation.valid;
+      });
+      
+      if (validTasks.length > 0) {
+        tasks.push(...validTasks);
+      }
+    }
+  } catch (error) {
+    console.warn('[TASK_PLANNER] Dynamic task creation failed, falling back to static:', error);
+  }
+  
+  // Fallback to static task creation if dynamic didn't work
+  if (tasks.length === 0) {
 
   if (!intent.group_size && tripMemory.group_size) {
     intent.group_size = tripMemory.group_size;
@@ -109,21 +155,45 @@ export async function createTaskPlan(state: ExecutionState): Promise<ExecutionSt
     };
   }
 
+  // Dynamically create flight search task if flights are requested
   if (intent.requested_tasks.includes('flights')) {
-    tasks.push({
-      task_id: 'search_flights',
-      agent: 'research',
-      action: 'search_flights',
-      parameters: {
-        origin: intent.origin,
-        destination: intent.destinations[0] || null,
-        departure_date: intent.start_date,
-        return_date: intent.end_date,
-        passengers: intent.group_size,
-      },
-      depends_on: [],
-      priority: 1,
-    });
+    // Find available flight tools
+    const flightTools = findToolsForTask('flight search');
+    
+    if (flightTools.length > 0) {
+      // Use the first available flight tool
+      const flightTool = flightTools[0];
+      tasks.push({
+        task_id: 'search_flights',
+        agent: flightTool.metadata.agent,
+        action: flightTool.metadata.action,
+        parameters: {
+          origin: intent.origin,
+          destination: intent.destinations[0] || null,
+          departure_date: intent.start_date,
+          return_date: intent.end_date,
+          passengers: intent.group_size,
+        },
+        depends_on: [],
+        priority: 1,
+      });
+    } else {
+      // Fallback to hardcoded task if no tool found
+      tasks.push({
+        task_id: 'search_flights',
+        agent: 'research',
+        action: 'search_flights',
+        parameters: {
+          origin: intent.origin,
+          destination: intent.destinations[0] || null,
+          departure_date: intent.start_date,
+          return_date: intent.end_date,
+          passengers: intent.group_size,
+        },
+        depends_on: [],
+        priority: 1,
+      });
+    }
   }
 
   if (intent.requested_tasks.includes('hotels')) {
@@ -228,11 +298,40 @@ export async function executeTaskPlan(state: ExecutionState): Promise<ExecutionS
   return { ...state, completed_tasks: completedTasks };
 }
 
+// Lazy load tool registry
+let toolRegistryLoaded = false;
+
+async function ensureToolsLoaded() {
+  if (!toolRegistryLoaded) {
+    const { loadAllTools } = await import('../services/tool_loader.js');
+    await loadAllTools();
+    toolRegistryLoaded = true;
+  }
+}
+
 export async function executeSingleTask(task: Task, context: Record<string, any>): Promise<any> {
-  return {
-    status: 'not_implemented',
-    message: `Connect this action to a provider or internal service. Agent=${task.agent}, action=${task.action}, parameters=${JSON.stringify(task.parameters)}.`,
-  };
+  // Ensure tools are loaded
+  await ensureToolsLoaded();
+  
+  const { toolRegistry } = await import('../services/tool_registry.js');
+  
+  const toolKey = `${task.agent}:${task.action}`;
+  
+  console.log(`[AGENT] Executing task: ${task.task_id} (${toolKey})`);
+  console.log(`[AGENT] Parameters:`, JSON.stringify(task.parameters, null, 2));
+  
+  // Use the dynamic tool registry
+  const result = await toolRegistry.execute(
+    task.agent,
+    task.action,
+    task.parameters,
+    context
+  );
+  
+  console.log(`[AGENT] Task ${task.task_id} completed with status: ${result.status}`);
+  
+  // Convert ToolResult to the format expected by the workflow
+  return result;
 }
 
 export async function synthesizeResponse(state: ExecutionState): Promise<ExecutionState> {
@@ -243,18 +342,39 @@ export async function synthesizeResponse(state: ExecutionState): Promise<Executi
     return { ...state, final_response: "I wasn't able to parse that request." };
   }
 
+  const flightResults = completedTasks.search_flights;
+  const flightInfo = flightResults?.status === 'success' 
+    ? `Found ${flightResults.count || 0} flight options. Cheapest: ${flightResults.currency}${flightResults.total_price}. ${flightResults.count || 0} options available.`
+    : flightResults?.status === 'error'
+    ? `Flight search encountered an error: ${flightResults.message}`
+    : flightResults?.status === 'no_results'
+    ? 'No flights found for the given criteria. Try adjusting dates or destinations.'
+    : flightResults?.status === 'not_implemented'
+    ? 'Flight search is not yet connected.'
+    : 'No flight search was performed.';
+
   const prompt = `You are NomadSync, a friendly travel planning assistant.
 
 The user asked: ${intent.original_message}
 
-Use the data below to respond. If a task result has status=not_implemented, explain that integrations are pending and ask if the user wants you to continue once connected.
+Use the data below to respond. Present flight information in a clear, helpful format.
 
-Flights: ${JSON.stringify(completedTasks.search_flights)}
-Hotels: ${JSON.stringify(completedTasks.search_hotels)}
-Weather: ${JSON.stringify(completedTasks.get_weather)}
-Day 1: ${JSON.stringify(completedTasks.plan_day_1)}
-Day 2: ${JSON.stringify(completedTasks.plan_day_2)}
-Day 3: ${JSON.stringify(completedTasks.plan_day_3)}`;
+FLIGHT SEARCH RESULTS:
+${flightInfo}
+${flightResults?.status === 'success' && flightResults.data ? `\nTop flight options:\n${JSON.stringify(flightResults.data.slice(0, 3), null, 2)}` : ''}
+
+OTHER RESULTS:
+Hotels: ${JSON.stringify(completedTasks.search_hotels || { status: 'not_searched' })}
+Weather: ${JSON.stringify(completedTasks.get_weather || { status: 'not_searched' })}
+Day 1: ${JSON.stringify(completedTasks.plan_day_1 || { status: 'not_searched' })}
+Day 2: ${JSON.stringify(completedTasks.plan_day_2 || { status: 'not_searched' })}
+Day 3: ${JSON.stringify(completedTasks.plan_day_3 || { status: 'not_searched' })}
+
+Instructions:
+- If flights were found, present them in a user-friendly format with prices, times, and airlines.
+- Highlight the best value option.
+- If there were errors, explain what went wrong and suggest alternatives.
+- Be conversational and helpful.`;
 
   const client = openaiClient();
   const response = await client.chat.completions.create({

@@ -54,4 +54,8 @@ export const config = {
   openaiApiKey: process.env.OPENAI_API_KEY || null,
   openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   port: parseInt(process.env.PORT || '8000', 10),
+  // Amadeus API Configuration
+  amadeusApiKey: process.env.AMADEUS_API_KEY || '',
+  amadeusApiSecret: process.env.AMADEUS_API_SECRET || '',
+  amadeusBaseUrl: process.env.AMADEUS_BASE_URL || 'https://test.api.amadeus.com',
 };

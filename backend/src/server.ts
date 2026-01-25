@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectToMongo, closeMongoConnection } from './database.js';
 import { config } from './config.js';
+import { loadAllTools } from './services/tool_loader.js';
 
 // Import routers
 import authRouter from './routers/auth.js';
@@ -25,9 +26,34 @@ app.use(cors({
   credentials: true,
 }));
 
-// Body parsing middleware
+// Body parsing middleware (must be before request logging)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Request logging middleware
+app.use((req: Request, res: Response, next: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    // Log request body but mask sensitive fields
+    const sanitizedBody = { ...req.body };
+    if (sanitizedBody.password) sanitizedBody.password = '***';
+    if (sanitizedBody.refresh_token) sanitizedBody.refresh_token = '***';
+    console.log('  Request body:', JSON.stringify(sanitizedBody, null, 2));
+  }
+  
+  // Response logging
+  res.on('finish', () => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.path} -> ${res.statusCode}`);
+    if (res.statusCode >= 400) {
+      // Note: response body is already sent, so we can't log it here
+      // But we log it in the route handlers
+    }
+  });
+  
+  next();
+});
 
 // Health check endpoint (must be before catch-all routes)
 app.get('/health', (req: Request, res: Response) => {
@@ -99,7 +125,8 @@ app.get('*', (req: Request, res: Response) => {
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error('Error:', err);
+  console.error(`[${new Date().toISOString()}] Unhandled Error on ${req.method} ${req.path}:`, err);
+  console.error('  Stack:', err.stack);
   res.status(err.status || 500).json({
     detail: err.message || 'Internal server error',
   });
@@ -111,6 +138,14 @@ let server: any;
 async function startServer() {
   try {
     await connectToMongo();
+    
+    // Load all tools on server startup
+    try {
+      await loadAllTools();
+    } catch (error) {
+      console.warn('Warning: Some tools failed to load:', error);
+      // Continue anyway - tools can be loaded lazily
+    }
     
     const port = config.port;
     server = app.listen(port, '0.0.0.0', () => {

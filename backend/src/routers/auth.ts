@@ -10,13 +10,17 @@ const router = Router();
 
 router.post('/register', async (req: Request, res: Response) => {
   try {
+    console.log('[AUTH] Register attempt for email:', req.body?.email);
     const validated = UserCreateSchema.parse(req.body);
     const db = getDatabase();
     
     // Check if user exists
     const existing = await db.collection('users').findOne({ email: validated.email });
     if (existing) {
-      res.status(409).json({ detail: 'Email already registered' });
+      console.log('[AUTH] Register failed: Email already registered:', validated.email);
+      const errorResponse = { detail: 'Email already registered' };
+      console.log('[AUTH] Sending 409 response:', JSON.stringify(errorResponse));
+      res.status(409).json(errorResponse);
       return;
     }
     
@@ -35,6 +39,7 @@ router.post('/register', async (req: Request, res: Response) => {
     
     const result = await db.collection('users').insertOne(userDoc);
     
+    console.log('[AUTH] Register successful for email:', userDoc.email);
     res.status(201).json({
       id: result.insertedId.toString(),
       email: userDoc.email,
@@ -42,33 +47,59 @@ router.post('/register', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
-      res.status(400).json({ detail: 'Validation error', errors: error.errors });
+      console.error('[AUTH] Register validation error:', error.errors);
+      const errorResponse = { detail: 'Validation error', errors: error.errors };
+      console.log('[AUTH] Sending 400 validation error response:', JSON.stringify(errorResponse));
+      res.status(400).json(errorResponse);
       return;
     }
-    res.status(500).json({ detail: error.message });
+    console.error('[AUTH] Register error:', error);
+    console.error('  Stack:', error.stack);
+    const errorResponse = { detail: error.message };
+    console.log('[AUTH] Sending 500 error response:', JSON.stringify(errorResponse));
+    res.status(500).json(errorResponse);
   }
 });
 
 router.post('/login', async (req: Request, res: Response) => {
   try {
+    console.log('[AUTH] Login attempt for username:', req.body?.username);
     const { username, password } = req.body;
     
     if (!username || !password) {
-      res.status(400).json({ detail: 'Username and password required' });
+      console.error('[AUTH] Login failed: Missing username or password');
+      console.error('  Request body keys:', Object.keys(req.body || {}));
+      console.error('  Request body:', JSON.stringify(req.body, null, 2));
+      const errorResponse = { detail: 'Username and password required' };
+      console.log('[AUTH] Sending 400 response:', JSON.stringify(errorResponse));
+      res.status(400).json(errorResponse);
       return;
     }
     
     const db = getDatabase();
     const user = await db.collection('users').findOne({ email: username });
     
-    if (!user || !(await verifyPassword(password, user.password_hash))) {
-      res.status(401).json({ detail: 'Incorrect email or password' });
+    if (!user) {
+      console.error('[AUTH] Login failed: User not found for email:', username);
+      const errorResponse = { detail: 'Incorrect email or password' };
+      console.log('[AUTH] Sending 401 response:', JSON.stringify(errorResponse));
+      res.status(401).json(errorResponse);
+      return;
+    }
+    
+    const passwordValid = await verifyPassword(password, user.password_hash);
+    if (!passwordValid) {
+      console.error('[AUTH] Login failed: Invalid password for email:', username);
+      const errorResponse = { detail: 'Incorrect email or password' };
+      console.log('[AUTH] Sending 401 response:', JSON.stringify(errorResponse));
+      res.status(401).json(errorResponse);
       return;
     }
     
     const accessToken = createAccessToken({ sub: user._id.toString() });
     const refreshToken = createRefreshToken({ sub: user._id.toString() });
     
+    console.log('[AUTH] Login successful for email:', username);
     res.json({
       access_token: accessToken,
       refresh_token: refreshToken,
@@ -80,7 +111,11 @@ router.post('/login', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    res.status(500).json({ detail: error.message });
+    console.error('[AUTH] Login error:', error);
+    console.error('  Stack:', error.stack);
+    const errorResponse = { detail: error.message };
+    console.log('[AUTH] Sending 500 error response:', JSON.stringify(errorResponse));
+    res.status(500).json(errorResponse);
   }
 });
 
