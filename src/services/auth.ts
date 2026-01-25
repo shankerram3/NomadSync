@@ -39,7 +39,7 @@ export const authService = {
   },
 
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    // FastAPI OAuth2 expects form data
+    // Express.js login endpoint expects form data
     const formData = new FormData();
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);

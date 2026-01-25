@@ -35,7 +35,7 @@ lerna-debug.log*
 *.sln
 *.sw?
 
-# Python
+# Python (legacy - removed)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -46,16 +46,9 @@ venv/
 ENV/
 env/
 *.egg-info/
-dist/
-build/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Backend
-backend/.venv/
-backend/__pycache__/
-backend/*.pyc
 
 # OS
 .DS_Store

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "dev:backend": "cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:backend": "cd backend && npm run dev",
     "dev:all": "./start-dev.sh"
   },
   "dependencies": {

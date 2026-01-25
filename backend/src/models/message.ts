@@ -1,0 +1,32 @@
+import { z } from 'zod';
+
+export const MessageBaseSchema = z.object({
+  type: z.enum(['human', 'agent', 'conflict']),
+  content: z.string(),
+  summary: z.string().optional(),
+  questions: z.array(z.string()).optional(),
+  has_view_plan: z.boolean().default(false),
+});
+
+export const MessageCreateSchema = MessageBaseSchema.extend({
+  type: z.enum(['human', 'agent']).default('human'),
+});
+
+export type MessageBase = z.infer<typeof MessageBaseSchema>;
+export type MessageCreate = z.infer<typeof MessageCreateSchema>;
+
+export interface MessageInDB extends MessageBase {
+  _id?: string;
+  tripId?: string;
+  authorId?: string;
+  conflictId?: string;
+  createdAt?: Date;
+}
+
+export interface Message extends MessageBase {
+  id: string;
+  trip_id: string;
+  author_id: string | null;
+  conflict_id: string | null;
+  created_at: Date;
+}

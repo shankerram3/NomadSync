@@ -28,29 +28,27 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Backend stage
-FROM python:3.11-slim
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Copy backend package files
+COPY backend/package*.json ./
 
-# Install system dependencies (including ca-certificates for SSL/TLS)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
 
-# Copy requirements first for better caching (build context should be project root)
-COPY backend/requirements.txt .
+# Copy backend source code and config
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Build TypeScript
+RUN npm run build
 
-# Copy backend application code
-COPY backend/app ./app
+# Remove dev dependencies and source files
+RUN npm ci --only=production && \
+    rm -rf src tsconfig.json
 
 # Copy built frontend from frontend-builder stage
 COPY --from=frontend-builder /app/frontend/dist ./static
@@ -60,6 +58,7 @@ EXPOSE 8000
 
 # Set default PORT environment variable if not provided
 ENV PORT=8000
+ENV NODE_ENV=production
 
 # Run the application using $PORT from Railway
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["node", "dist/server.js"]

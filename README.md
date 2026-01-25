@@ -80,13 +80,13 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **React Hook Form** - Form handling
 
 ### Backend
-- **FastAPI** - Modern Python web framework with automatic API docs
-- **MongoDB** with Motor - Async MongoDB driver
-- **LangGraph** - AI agent workflow orchestration
+- **Express.js** - Fast, unopinionated Node.js web framework
+- **MongoDB** (native driver) - Async MongoDB driver
+- **LangGraph** - AI agent workflow orchestration (TypeScript implementation)
 - **OpenAI API** - LLM integration for AI agent
-- **JWT** (python-jose) - Token-based authentication
-- **Pydantic** - Data validation and settings management
-- **Uvicorn** - ASGI server
+- **JWT** (jsonwebtoken) - Token-based authentication
+- **Zod** - TypeScript-first schema validation
+- **TypeScript** - Type-safe JavaScript
 
 ### Infrastructure
 - **Docker** and **Docker Compose** - Containerization
@@ -100,8 +100,7 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **Docker and Docker Compose** (recommended)
   - Docker Desktop: https://www.docker.com/products/docker-desktop
   - Or Docker Engine + Docker Compose
-- **Node.js 20+** (for local development only)
-- **Python 3.11+** (for local development only)
+- **Node.js 20+** (for local development)
 - **MongoDB** (or use Docker - recommended)
 
 ### Using Docker (Recommended)
@@ -159,18 +158,14 @@ This is the easiest way to get started:
    cd backend
    ```
 
-2. **Create virtual environment**
+2. **Install dependencies**
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   cd backend
+   npm install
+   cd ..
    ```
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Create .env file**
+3. **Create .env file**
    ```bash
    cat > .env << EOF
    MONGODB_URI=mongodb://localhost:27017
@@ -185,7 +180,7 @@ This is the easiest way to get started:
    EOF
    ```
 
-5. **Start MongoDB** (if not using Docker)
+4. **Start MongoDB** (if not using Docker)
    ```bash
    # Using Docker (easiest)
    docker run -d -p 27017:27017 --name mongodb mongo:7
@@ -195,9 +190,10 @@ This is the easiest way to get started:
    # Ubuntu: apt-get install mongodb
    ```
 
-6. **Run the backend**
+5. **Run the backend**
    ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   cd backend
+   npm run dev
    ```
 
    The API will be available at http://localhost:8000
@@ -489,7 +485,7 @@ Content-Type: application/json
 
 ### System Architecture Overview
 
-NomadSync follows a modern full-stack architecture with a React frontend, FastAPI backend, and MongoDB database. The system supports both local development with Docker Compose and cloud deployment on Railway.
+NomadSync follows a modern full-stack architecture with a React frontend, Express.js/Node.js backend, and MongoDB database. The system supports both local development with Docker Compose and cloud deployment on Railway.
 
 #### Docker Compose (Local Development)
 
@@ -506,7 +502,7 @@ graph TB
         end
         
         subgraph "Backend Service"
-            Backend[🚀 FastAPI<br/>Port 8000<br/>- REST API<br/>- JWT Auth<br/>- LangGraph]
+            Backend[🚀 Express.js<br/>Port 8000<br/>- REST API<br/>- JWT Auth<br/>- LangGraph]
         end
         
         subgraph "Database Service"
@@ -540,7 +536,7 @@ graph TB
     
     subgraph "Railway Platform"
         subgraph "Single Service Container"
-            FastAPI[🚀 FastAPI + React<br/>Port: $PORT<br/>- Uvicorn ASGI Server<br/>- Static File Serving<br/>- API Routes /api/*]
+            Express[🚀 Express.js + React<br/>Port: $PORT<br/>- Node.js Server<br/>- Static File Serving<br/>- API Routes /api/*]
             
             subgraph "Routes"
                 Routes1["/ → index.html<br/>Frontend SPA"]
@@ -555,23 +551,23 @@ graph TB
         OpenAI[🤖 OpenAI API<br/>gpt-4o-mini]
     end
     
-    Users -->|"HTTPS<br/>*.up.railway.app"| FastAPI
-    FastAPI --> Routes1
-    FastAPI --> Routes2
-    FastAPI --> Routes3
-    FastAPI <-->|"SSL/TLS<br/>Connection String"| MongoDB
-    FastAPI -->|"API Calls"| OpenAI
-    
-    style FastAPI fill:#00d4aa
+    Users -->|"HTTPS<br/>*.up.railway.app"| Express
+    Express --> Routes1
+    Express --> Routes2
+    Express --> Routes3
+    Express <-->|"SSL/TLS<br/>Connection String"| MongoDB
+    Express -->|"API Calls"| OpenAI
+
+    style Express fill:#00d4aa
     style MongoDB fill:#4db33d
     style OpenAI fill:#412991
     style Users fill:#e1f5ff
 ```
 
 **Key Architecture Points:**
-- **Single Service**: Frontend and backend served from one FastAPI container
+- **Single Service**: Frontend and backend served from one Express.js container
 - **Same Origin**: Frontend and API share the same domain, eliminating CORS issues
-- **Static Serving**: FastAPI serves built React SPA from `/` route
+- **Static Serving**: Express.js serves built React SPA from `/` route
 - **API Routing**: All API endpoints prefixed with `/api/*`
 - **MongoDB Atlas**: External cloud database with IP whitelisting (`0.0.0.0/0`)
 - **Build Process**: Multi-stage Docker build compiles frontend before backend stage
@@ -580,7 +576,7 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "FastAPI Application"
+    subgraph "Express.js Application"
         Main[main.py<br/>App Initialization<br/>- CORS Middleware<br/>- DB Connection<br/>- Static File Serving]
         
         subgraph "API Routers"
@@ -669,7 +665,7 @@ graph TB
 - **Modular Routers**: Each domain (auth, trips, messages, etc.) has its own router module
 - **Middleware Chain**: JWT authentication middleware validates all protected routes
 - **Permission System**: Trip-level permissions (owner/editor/viewer) enforced via utilities
-- **Pydantic Models**: Type-safe data validation and serialization
+- **Zod Schemas**: Type-safe data validation and serialization
 - **Async Database**: Motor (async MongoDB driver) for non-blocking operations
 - **Agent Integration**: LangGraph workflow triggered via `/agents/plan` endpoint
 
@@ -805,7 +801,7 @@ flowchart TD
 sequenceDiagram
     participant U as User Browser
     participant CP as ChatPanel Component
-    participant API as FastAPI Backend
+    participant API as Express.js Backend
     participant DB as MongoDB
     participant LG as LangGraph Agent
     participant OAI as OpenAI API
@@ -860,7 +856,7 @@ sequenceDiagram
 sequenceDiagram
     participant U as User Browser
     participant LP as LoginPage Component
-    participant API as FastAPI Backend
+    participant API as Express.js Backend
     participant DB as MongoDB
     participant Auth as AuthContext
     
@@ -910,7 +906,7 @@ sequenceDiagram
     participant U as User Browser
     participant TP as TripsPage Component
     participant TSP as TripSidebar Component
-    participant API as FastAPI Backend
+    participant API as Express.js Backend
     participant DB as MongoDB
     
     U->>TP: Load trips dashboard
@@ -1361,7 +1357,7 @@ App.tsx
 The `docker-compose.yml` file configures three services:
 
 - **mongodb**: MongoDB database
-- **backend**: FastAPI application
+- **backend**: Express.js/Node.js application
 - **frontend**: React application served by Nginx
 
 All services communicate through a Docker network (`nomadsync-network`).
@@ -1376,29 +1372,33 @@ NomadSync/
 │   ├── app/
 │   │   ├── agents/          # LangGraph agent workflows
 │   │   │   └── langgraph_workflow.py
-│   │   ├── models/          # Pydantic models
-│   │   │   ├── user.py
-│   │   │   ├── trip.py
-│   │   │   ├── message.py
-│   │   │   ├── memory.py
-│   │   │   ├── plan.py
-│   │   │   └── conflict.py
-│   │   ├── routers/         # FastAPI route handlers
-│   │   │   ├── auth.py
-│   │   │   ├── trips.py
-│   │   │   ├── messages.py
-│   │   │   ├── memory.py
-│   │   │   ├── plan.py
-│   │   │   ├── conflicts.py
-│   │   │   └── agent.py
-│   │   ├── utils/           # Utility functions
-│   │   │   ├── auth.py
-│   │   │   └── trip_permissions.py
-│   │   ├── config.py        # Configuration
-│   │   ├── database.py      # MongoDB connection
-│   │   └── main.py          # FastAPI app
+│   │   ├── src/
+│   │   │   ├── models/          # Zod schemas and TypeScript types
+│   │   │   │   ├── user.ts
+│   │   │   │   ├── trip.ts
+│   │   │   │   ├── message.ts
+│   │   │   │   ├── memory.ts
+│   │   │   │   ├── plan.ts
+│   │   │   │   └── conflict.ts
+│   │   │   ├── routers/         # Express route handlers
+│   │   │   │   ├── auth.ts
+│   │   │   │   ├── trips.ts
+│   │   │   │   ├── messages.ts
+│   │   │   │   ├── memory.ts
+│   │   │   │   ├── plan.ts
+│   │   │   │   ├── conflicts.ts
+│   │   │   │   └── agent.ts
+│   │   │   ├── agents/          # Agent workflow
+│   │   │   │   └── langgraph_workflow.ts
+│   │   │   ├── utils/           # Utility functions
+│   │   │   │   ├── auth.ts
+│   │   │   │   └── trip_permissions.ts
+│   │   │   ├── config.ts        # Configuration
+│   │   │   ├── database.ts      # MongoDB connection
+│   │   │   └── server.ts        # Express app
 │   ├── Dockerfile
-│   ├── requirements.txt
+│   ├── package.json
+│   ├── tsconfig.json
 │   └── .dockerignore
 ├── src/
 │   ├── components/          # React components
@@ -1496,7 +1496,7 @@ npm test -- --watch
 
 ### Railway Deployment (Recommended)
 
-Railway is recommended for production deployments. The application uses a **single service** that serves both the frontend (React SPA) and backend (FastAPI) from one container.
+Railway is recommended for production deployments. The application uses a **single service** that serves both the frontend (React SPA) and backend (Express.js) from one container.
 
 #### Prerequisites
 
@@ -1509,7 +1509,7 @@ Railway is recommended for production deployments. The application uses a **sing
 
 #### Deployment Steps
 
-**Note:** This deployment uses a **single service** that serves both frontend and backend from FastAPI. The `backend/Dockerfile` builds the frontend and serves it alongside the API.
+**Note:** This deployment uses a **single service** that serves both frontend and backend from Express.js. The `backend/Dockerfile` builds the frontend and serves it alongside the API.
 
 ##### 1. Create Railway Service
 
@@ -1518,7 +1518,7 @@ Railway is recommended for production deployments. The application uses a **sing
 3. **Configure Service**:
    - **Root Directory**: `/` (project root) - **Important!**
    - Railway will use `railway.json` which points to `backend/Dockerfile`
-   - The Dockerfile automatically builds frontend and serves it via FastAPI
+   - The Dockerfile automatically builds frontend and serves it via Express.js
 
 4. **Set Environment Variables**:
    ```bash
@@ -1554,11 +1554,11 @@ Railway is recommended for production deployments. The application uses a **sing
 │                   Railway Platform                      │
 │                                                         │
 │  ┌──────────────────────────────────────────────┐     │
-│  │         Single Service (FastAPI)              │     │
+│  │         Single Service (Express.js)           │     │
 │  │                                               │     │
 │  │  Public URL: *.railway.app                   │     │
 │  │                                               │     │
-│  │  - FastAPI (Uvicorn)                         │     │
+│  │  - Express.js (Node.js)                     │     │
 │  │  - Serves React SPA (static files)           │     │
 │  │  - Handles API routes (/api/*)               │     │
 │  │  - Port: $PORT (Railway assigned)            │     │
@@ -1583,7 +1583,7 @@ Railway is recommended for production deployments. The application uses a **sing
 ```
 
 **Important Notes:**
-- **Single service deployment**: Frontend and backend served from one FastAPI service
+- **Single service deployment**: Frontend and backend served from one Express.js service
 - **VITE_API_URL**: Set to `/api` (same origin, no need for full URL)
 - **CORS_ORIGINS**: Include your Railway domain (e.g., `https://your-service.up.railway.app`)
 - **MongoDB Atlas**: Must whitelist `0.0.0.0/0` in Network Access for Railway's dynamic IPs
@@ -1643,7 +1643,7 @@ Railway is recommended for production deployments. The application uses a **sing
 
 3. **Run with production server**
    ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+   node dist/server.js
    ```
 
 #### Frontend
@@ -1679,7 +1679,7 @@ Railway is recommended for production deployments. The application uses a **sing
 - **Environment Variables**: Never commit `.env` files
 - **Database**: Use authentication for MongoDB in production
 - **Rate Limiting**: Implement rate limiting for API endpoints
-- **Input Validation**: All inputs are validated via Pydantic
+- **Input Validation**: All inputs are validated via Zod schemas
 
 ## 🔍 Troubleshooting
 
@@ -1698,7 +1698,7 @@ docker ps | grep mongo
 ```bash
 # Solution: Change port or kill process
 lsof -ti:8000 | xargs kill -9
-# Or use different port: uvicorn app.main:app --port 8001
+# Or use different port: PORT=8001 node dist/server.js
 ```
 
 #### Frontend won't connect to backend
@@ -1776,7 +1776,7 @@ POST /api/api/auth/register HTTP/1.1" 405
 
 **Problem**: `cors_origins` parsing error on startup
 ```
-pydantic_settings.exceptions.SettingsError: error parsing value for field "cors_origins"
+Error parsing CORS_ORIGINS environment variable
 ```
 **Solution**:
 - `CORS_ORIGINS` can be set as:
@@ -1800,7 +1800,7 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 **Solution**:
 - Verify the Dockerfile builds frontend in the `frontend-builder` stage
 - Check that static files are copied to `./static` in the backend stage
-- Ensure FastAPI serves static files from `/` route
+- Ensure Express.js serves static files from `/` route
 - Check Railway logs for build errors
 
 ### Debugging Tips
@@ -1909,7 +1909,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- Built with [Express.js](https://expressjs.com/) - Fast, unopinionated Node.js web framework
 - UI components from [shadcn/ui](https://ui.shadcn.com/) - Beautiful React components
 - Agent workflows powered by [LangGraph](https://github.com/langchain-ai/langgraph) - AI agent orchestration
 - Icons from [Lucide](https://lucide.dev/) - Icon library

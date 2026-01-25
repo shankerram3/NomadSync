@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # NomadSync Development Startup Script
-# Starts both backend (FastAPI) and frontend (Vite) servers
+# Starts both backend (Express/Node.js) and frontend (Vite) servers
 
 set -e
 
@@ -121,53 +121,42 @@ else
 fi
 echo ""
 
-# Check if Python virtual environment exists
-if [ -d "backend/.venv" ]; then
-    print_info "Activating Python virtual environment..."
-    source backend/.venv/bin/activate
-elif [ -d ".venv" ]; then
-    print_info "Activating Python virtual environment..."
-    source .venv/bin/activate
-else
-    print_warning "No virtual environment found. Using system Python."
-    print_info "To create a virtual environment, run: python3 -m venv backend/.venv"
-fi
-
 # Check if backend .env exists
 if [ ! -f "backend/.env" ]; then
     print_warning "backend/.env file not found. Creating from template..."
     cat > backend/.env << EOF
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DB=nomadsync
-JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
+JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=30
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
+PORT=8000
 EOF
     print_success "Created backend/.env file with default values"
 fi
 
-# Check if node_modules exists
+# Check if frontend node_modules exists
 if [ ! -d "node_modules" ]; then
     print_warning "node_modules not found. Installing frontend dependencies..."
     npm install
 fi
 
-# Check if backend dependencies are installed
-if ! python3 -c "import fastapi" 2>/dev/null; then
+# Check if backend node_modules exists
+if [ ! -d "backend/node_modules" ]; then
     print_warning "Backend dependencies not found. Installing..."
     cd backend
-    pip install -r requirements.txt
+    npm install
     cd ..
 fi
 
 # Start backend server
-print_info "Starting backend server (FastAPI) on http://localhost:8000"
+print_info "Starting backend server (Express/Node.js) on http://localhost:8000"
 cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > ../backend.log 2>&1 &
+npm run dev > ../backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
@@ -205,7 +194,7 @@ echo ""
 echo -e "${GREEN}MongoDB:${NC}       mongodb://localhost:27017"
 echo -e "${GREEN}Backend API:${NC}  http://localhost:8000"
 echo -e "${GREEN}Frontend App:${NC} http://localhost:5173"
-echo -e "${GREEN}API Docs:${NC}     http://localhost:8000/docs"
+echo -e "${GREEN}API Health:${NC}    http://localhost:8000/health"
 echo ""
 print_info "Press Ctrl+C to stop all servers"
 print_info "Note: MongoDB will continue running (use 'docker-compose stop mongodb' to stop it)"
