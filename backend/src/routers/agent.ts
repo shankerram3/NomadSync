@@ -49,13 +49,15 @@ router.post('/plan', getCurrentUserId, async (req: AuthRequest, res: Response) =
 
     // Auto-generate plan from task execution if trip_id is provided and tasks completed
     const completedTasks = finalState.completed_tasks || {};
+    let planVersionId: string | null = null;
     if (validated.trip_id && Object.keys(completedTasks).length > 0 && intent) {
-      await generatePlanFromTasks(validated.trip_id, intent, completedTasks);
+      planVersionId = await generatePlanFromTasks(validated.trip_id, intent, completedTasks);
     }
 
     res.json({
       clarification: finalState.clarification,
       response: finalState.final_response,
+      plan_version_id: planVersionId,
       intent: intent ? {
         original_message: intent.original_message,
         destinations: intent.destinations,
@@ -214,7 +216,7 @@ async function generatePlanFromTasks(
   tripId: string,
   intent: TripIntent,
   completedTasks: Record<string, any>
-): Promise<void> {
+): Promise<string | null> {
   try {
     const db = getDatabase();
 
@@ -321,10 +323,12 @@ async function generatePlanFromTasks(
       createdAt: now,
     };
 
-    await db.collection('plan_versions').insertOne(planDoc);
+    const result = await db.collection('plan_versions').insertOne(planDoc);
+    return result.insertedId.toString();
   } catch (error) {
     // Log error but don't fail the agent workflow
     console.error('Error generating plan from tasks:', error);
+    return null;
   }
 }
 

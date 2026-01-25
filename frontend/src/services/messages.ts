@@ -9,6 +9,7 @@ export interface Message {
   summary?: string;
   questions?: string[];
   conflict_id?: string;
+  plan_version_id?: string | null;
   has_view_plan: boolean;
   created_at: string;
 }
@@ -19,6 +20,7 @@ export interface CreateMessageData {
   summary?: string;
   questions?: string[];
   has_view_plan?: boolean;
+  plan_version_id?: string;
 }
 
 export const messagesService = {

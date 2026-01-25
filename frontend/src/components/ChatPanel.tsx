@@ -253,6 +253,8 @@ function AgentMessage({ message, onViewPlan }: { message: Message; onViewPlan: (
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const hasPlanVersion = !!message.plan_version_id;
+
   return (
     <div className="flex gap-3">
       <div className="flex-shrink-0">
@@ -264,6 +266,11 @@ function AgentMessage({ message, onViewPlan }: { message: Message; onViewPlan: (
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-sm font-medium text-blue-600">Travel Agent</span>
           <span className="text-xs text-gray-500">{formatTime(message.created_at)}</span>
+          {hasPlanVersion && (
+            <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
+              Plan Generated
+            </span>
+          )}
         </div>
         <div className="bg-blue-50 border border-blue-100 px-4 py-3 rounded-lg max-w-2xl">
           <p className="text-sm text-gray-800 mb-2">{message.content}</p>
@@ -282,12 +289,12 @@ function AgentMessage({ message, onViewPlan }: { message: Message; onViewPlan: (
               ))}
             </div>
           )}
-          {message.has_view_plan && (
+          {(message.has_view_plan || hasPlanVersion) && (
             <button
               onClick={onViewPlan}
-              className="mt-3 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="mt-3 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
             >
-              View updated plan
+              {hasPlanVersion ? 'View generated plan' : 'View updated plan'}
               <ArrowRight className="w-4 h-4" />
             </button>
           )}

@@ -28,4 +28,8 @@ export const planService = {
   async listVersions(tripId: string): Promise<PlanVersion[]> {
     return apiClient.get<PlanVersion[]>(`/api/trips/${tripId}/plan/versions`);
   },
+
+  async rollback(tripId: string, version: number): Promise<PlanVersion> {
+    return apiClient.post<PlanVersion>(`/api/trips/${tripId}/plan/rollback`, { version });
+  },
 };

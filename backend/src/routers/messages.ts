@@ -41,6 +41,7 @@ router.get('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
       summary: msg.summary,
       questions: msg.questions,
       conflict_id: msg.conflictId?.toString() || null,
+      plan_version_id: msg.planVersionId?.toString() || null,
       has_view_plan: msg.hasViewPlan || false,
       created_at: msg.createdAt,
     })));
@@ -64,12 +65,13 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
     const now = new Date();
     const messageDoc = {
       tripId: new ObjectId(trip_id),
-      authorId: new ObjectId(req.userId!),
+      authorId: validated.type === 'human' ? new ObjectId(req.userId!) : null,
       type: validated.type,
       content: validated.content,
       summary: validated.summary,
       questions: validated.questions,
       hasViewPlan: validated.has_view_plan,
+      planVersionId: validated.plan_version_id ? new ObjectId(validated.plan_version_id) : undefined,
       createdAt: now,
     };
     
@@ -84,11 +86,13 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
     res.status(201).json({
       id: result.insertedId.toString(),
       trip_id,
-      author_id: req.userId!,
+      author_id: messageDoc.authorId?.toString() || null,
       type: messageDoc.type,
       content: messageDoc.content,
       summary: messageDoc.summary,
       questions: messageDoc.questions,
+      conflict_id: null,
+      plan_version_id: messageDoc.planVersionId?.toString() || null,
       has_view_plan: messageDoc.hasViewPlan,
       created_at: now,
     });

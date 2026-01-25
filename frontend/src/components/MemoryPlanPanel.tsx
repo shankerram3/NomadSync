@@ -1,46 +1,70 @@
 import { useState } from 'react';
-import { Brain, Calendar, AlertCircle, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Brain, Calendar, AlertCircle, Check, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { PlanVersion } from '../services/plan';
+import { PlanVersion, planService } from '../services/plan';
 import { TripMemory, MemoryField } from '../services/memory';
+import { PlanVersionHistory } from './PlanVersionHistory';
 
 interface MemoryPlanPanelProps {
-  activeTab: 'memory' | 'plan';
-  setActiveTab: (tab: 'memory' | 'plan') => void;
+  activeTab: 'memory' | 'plan' | 'history';
+  setActiveTab: (tab: 'memory' | 'plan' | 'history') => void;
   tripMemory: TripMemory | null;
   planVersion: PlanVersion | null;
   messages: any[];
+  tripId: string;
+  onPlanUpdate: (plan: PlanVersion) => void;
 }
 
-export function MemoryPlanPanel({ activeTab, setActiveTab, tripMemory, planVersion, messages }: MemoryPlanPanelProps) {
+export function MemoryPlanPanel({ 
+  activeTab, 
+  setActiveTab, 
+  tripMemory, 
+  planVersion, 
+  messages,
+  tripId,
+  onPlanUpdate,
+}: MemoryPlanPanelProps) {
   return (
     <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('memory')}
-          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+          className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
             activeTab === 'memory'
               ? 'text-blue-600 border-b-2 border-blue-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-1.5">
             <Brain className="w-4 h-4" />
-            Trip Memory
+            <span className="hidden sm:inline">Memory</span>
           </div>
         </button>
         <button
           onClick={() => setActiveTab('plan')}
-          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+          className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
             activeTab === 'plan'
               ? 'text-blue-600 border-b-2 border-blue-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-1.5">
             <Calendar className="w-4 h-4" />
-            Plan
+            <span className="hidden sm:inline">Plan</span>
+          </div>
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
+            activeTab === 'history'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-1.5">
+            <History className="w-4 h-4" />
+            <span className="hidden sm:inline">History</span>
           </div>
         </button>
       </div>
@@ -49,8 +73,26 @@ export function MemoryPlanPanel({ activeTab, setActiveTab, tripMemory, planVersi
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'memory' ? (
           <MemoryView tripMemory={tripMemory} />
-        ) : (
+        ) : activeTab === 'plan' ? (
           <PlanView planVersion={planVersion} />
+        ) : (
+          <PlanVersionHistory
+            tripId={tripId}
+            currentVersion={planVersion}
+            onVersionSelect={(version) => {
+              onPlanUpdate(version);
+              setActiveTab('plan');
+            }}
+            onRollback={async (version) => {
+              try {
+                const rolledBack = await planService.rollback(tripId, version.version);
+                onPlanUpdate(rolledBack);
+                setActiveTab('plan');
+              } catch (error) {
+                console.error('Failed to rollback plan:', error);
+              }
+            }}
+          />
         )}
       </div>
     </div>
@@ -304,10 +346,23 @@ function PlanView({ planVersion }: { planVersion: PlanVersion | null }) {
           <h3 className="text-sm font-medium text-gray-900">
             {itinerary.length}-Day Itinerary
           </h3>
-          <p className="text-xs text-gray-500">Version {planVersion.version}</p>
+          <p className="text-xs text-gray-500">
+            Version {planVersion.version}
+            {planVersion.created_by === 'agent' && (
+              <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                AI Generated
+              </span>
+            )}
+          </p>
         </div>
-        <button className="text-xs text-blue-600 hover:text-blue-700">
-          Compare versions
+        <button 
+          onClick={() => {
+            // This would be handled by parent to switch to history tab
+            // For now, just show a tooltip
+          }}
+          className="text-xs text-blue-600 hover:text-blue-700"
+        >
+          View history
         </button>
       </div>
 

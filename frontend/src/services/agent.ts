@@ -10,6 +10,7 @@ export interface AgentRequest {
 export interface AgentResponse {
   clarification?: string;
   response?: string;
+  plan_version_id?: string | null;
   intent?: Record<string, unknown>;
   task_plan?: Record<string, unknown>;
   completed_tasks: Record<string, unknown>;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { TripSidebar } from './TripSidebar';
 import { ChatPanel } from './ChatPanel';
@@ -9,21 +9,32 @@ import { planService, PlanVersion } from '../services/plan';
 import { conflictsService } from '../services/conflicts';
 import { agentService } from '../services/agent';
 import { tripsService, Trip } from '../services/trips';
+import { realtimeService } from '../services/realtime';
+import { RealtimeIndicator } from './RealtimeIndicator';
 
 export function TripPlanner() {
   const { id } = useParams<{ id: string }>();
-  const [activeRightTab, setActiveRightTab] = useState<'memory' | 'plan'>('memory');
+  const [activeRightTab, setActiveRightTab] = useState<'memory' | 'plan' | 'history'>('memory');
   const [messages, setMessages] = useState<Message[]>([]);
   const [tripMemory, setTripMemory] = useState<TripMemory | null>(null);
   const [planVersion, setPlanVersion] = useState<PlanVersion | null>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>();
+  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadTripData();
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (id) {
+        realtimeService.stopPolling(id);
+      }
+    };
   }, [id]);
 
   const loadTripData = async () => {
@@ -42,6 +53,39 @@ export function TripPlanner() {
       setTripMemory(memoryData);
       setPlanVersion(planData);
       setTrip(tripData);
+
+      // Set last known IDs for real-time polling
+      if (messagesData.length > 0) {
+        realtimeService.setLastMessageId(id, messagesData[messagesData.length - 1].id);
+      }
+      if (planData) {
+        realtimeService.setLastPlanVersion(id, planData.version);
+      }
+
+      // Start real-time polling
+      if (id) {
+        setIsRealtimeActive(true);
+        realtimeService.startPolling(id, {
+          onMessage: (newMessage) => {
+            setMessages(prev => {
+              // Avoid duplicates
+              if (prev.some(m => m.id === newMessage.id)) {
+                return prev;
+              }
+              setLastUpdate(new Date());
+              return [...prev, newMessage];
+            });
+          },
+          onPlanUpdate: (newPlan) => {
+            setPlanVersion(newPlan);
+            setLastUpdate(new Date());
+            // Optionally switch to plan tab to show the update
+            if (activeRightTab === 'memory') {
+              setActiveRightTab('plan');
+            }
+          },
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load trip data');
     } finally {
@@ -106,8 +150,15 @@ export function TripPlanner() {
           const agentMessage = await messagesService.create(id, {
             type: 'agent',
             content: agentResponse.response,
+            has_view_plan: !!agentResponse.plan_version_id,
+            plan_version_id: agentResponse.plan_version_id || undefined,
           });
           setMessages(prev => [...prev, agentMessage]);
+          
+          // Update last message ID for polling
+          if (id) {
+            realtimeService.setLastMessageId(id, agentMessage.id);
+          }
         }
 
         // Update memory if intent was extracted
@@ -152,7 +203,8 @@ export function TripPlanner() {
 
     try {
       await conflictsService.vote(id, conflictId, optionKey);
-      // Reload messages to get updated vote counts
+      // Real-time polling will pick up the vote update
+      // Optionally reload messages immediately for instant feedback
       const updatedMessages = await messagesService.getByTrip(id);
       setMessages(updatedMessages);
     } catch (err) {
@@ -178,6 +230,9 @@ export function TripPlanner() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Real-time Update Indicator */}
+      <RealtimeIndicator isConnected={isRealtimeActive} lastUpdate={lastUpdate} />
+      
       {/* Left Sidebar */}
       <TripSidebar 
         isAgentThinking={isAgentThinking}
@@ -200,6 +255,11 @@ export function TripPlanner() {
         tripMemory={tripMemory}
         planVersion={planVersion}
         messages={messages}
+        tripId={id!}
+        onPlanUpdate={(plan) => {
+          setPlanVersion(plan);
+          setActiveRightTab('plan');
+        }}
       />
     </div>
   );
