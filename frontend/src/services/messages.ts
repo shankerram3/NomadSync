@@ -11,6 +11,17 @@ export interface Message {
   conflict_id?: string;
   plan_version_id?: string | null;
   has_view_plan: boolean;
+  flights?: Array<{
+    airline: string;
+    departure: { date: string; time: string };
+    arrival: { date: string; time: string };
+    price: string;
+    returnFlight?: {
+      departure: { date: string; time: string };
+      arrival: { date: string; time: string };
+    };
+    isBestValue?: boolean;
+  }>;
   created_at: string;
 }
 
@@ -21,6 +32,17 @@ export interface CreateMessageData {
   questions?: string[];
   has_view_plan?: boolean;
   plan_version_id?: string;
+  flights?: Array<{
+    airline: string;
+    departure: { date: string; time: string };
+    arrival: { date: string; time: string };
+    price: string;
+    returnFlight?: {
+      departure: { date: string; time: string };
+      arrival: { date: string; time: string };
+    };
+    isBestValue?: boolean;
+  }>;
 }
 
 export const messagesService = {

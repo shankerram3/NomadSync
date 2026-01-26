@@ -14,6 +14,7 @@ import conflictsRouter from './routers/conflicts.js';
 import planRouter from './routers/plan.js';
 import memoryRouter from './routers/memory.js';
 import agentRouter from './routers/agent.js';
+import realtimeRouter from './routers/realtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,9 @@ const app = express();
 app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
 
 // Body parsing middleware (must be before request logging)
@@ -33,35 +37,54 @@ app.use(express.urlencoded({ extended: true }));
 // Request logging middleware
 app.use((req: Request, res: Response, next: any) => {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.path}`);
-  if (req.body && Object.keys(req.body).length > 0) {
-    // Log request body but mask sensitive fields
-    const sanitizedBody = { ...req.body };
-    if (sanitizedBody.password) sanitizedBody.password = '***';
-    if (sanitizedBody.refresh_token) sanitizedBody.refresh_token = '***';
-    console.log('  Request body:', JSON.stringify(sanitizedBody, null, 2));
+  const hasAuth = !!req.headers.authorization;
+  
+  // Only log requests that aren't static files or health checks
+  const isStaticFileRequest = req.path === '/' || req.path.startsWith('/assets/') || req.path === '/favicon.ico';
+  const isHealthCheck = req.path === '/health' || req.path === '/api';
+  
+  if (!isStaticFileRequest && !isHealthCheck) {
+    console.log(`[${timestamp}] ${req.method} ${req.path}${hasAuth ? ' [AUTH]' : ' [NO AUTH]'}`);
+    
+    if (req.body && Object.keys(req.body).length > 0) {
+      // Log request body but mask sensitive fields
+      const sanitizedBody = { ...req.body };
+      if (sanitizedBody.password) sanitizedBody.password = '***';
+      if (sanitizedBody.refresh_token) sanitizedBody.refresh_token = '***';
+      console.log('  Request body:', JSON.stringify(sanitizedBody, null, 2));
+    }
   }
   
   // Response logging
   res.on('finish', () => {
     const timestamp = new Date().toISOString();
     // Suppress logging for common non-error cases in development
-    const isStaticFileRequest = req.path === '/' || req.path.startsWith('/assets/') || req.path === '/favicon.ico';
     const isExpected404 = isStaticFileRequest && res.statusCode === 404;
     const is304 = res.statusCode === 304;
     
-    // Only log if it's an actual error or not a common development case
-    if (!isExpected404 && !is304) {
-      console.log(`[${timestamp}] ${req.method} ${req.path} -> ${res.statusCode}`);
-    }
+    // For 401 errors, only log if it's unexpected (i.e., user had auth token)
+    const isExpected401 = res.statusCode === 401 && !hasAuth;
     
-    if (res.statusCode >= 400 && !isExpected404) {
-      // Note: response body is already sent, so we can't log it here
-      // But we log it in the route handlers
+    // Only log if it's an actual error or not a common development case
+    if (!isExpected404 && !is304 && (!isExpected401 || hasAuth)) {
+      if (res.statusCode >= 400) {
+        console.log(`[${timestamp}] ${req.method} ${req.path} -> ${res.statusCode}${hasAuth ? ' [AUTH FAILED]' : ' [NO AUTH]'}`);
+      } else {
+        console.log(`[${timestamp}] ${req.method} ${req.path} -> ${res.statusCode}`);
+      }
     }
   });
   
   next();
+});
+
+// Handle CORS preflight requests
+app.options('*', (req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(204).send();
 });
 
 // Health check endpoint (must be before catch-all routes)
@@ -81,6 +104,7 @@ app.use('/api/trips/:trip_id/messages', messagesRouter);
 app.use('/api/trips/:trip_id/conflicts', conflictsRouter);
 app.use('/api/trips/:trip_id/plan', planRouter);
 app.use('/api/trips/:trip_id/memory', memoryRouter);
+app.use('/api/trips/:trip_id/realtime', realtimeRouter);
 app.use('/api/agents', agentRouter);
 
 // Serve static files (frontend build)

@@ -32,7 +32,7 @@ export async function searchFlightsTool(
     }
 
     // Normalize airport codes (handle city names by extracting IATA codes)
-    // Try API lookup first, then fall back to hardcoded mappings
+    // Uses Google Places API and Amadeus API for dynamic lookup
     const originCode = await resolveAirportCode(origin);
     const destCode = await resolveAirportCode(destination);
 
@@ -97,7 +97,7 @@ export async function searchFlightsTool(
 
 /**
  * Resolve airport IATA code from city name, airport name, or code
- * Uses Amadeus API first, then falls back to hardcoded mappings
+ * Uses Google Places API first, then Amadeus API as fallback
  */
 export async function resolveAirportCode(location: string): Promise<string | null> {
   if (!location) return null;
@@ -109,9 +109,78 @@ export async function resolveAirportCode(location: string): Promise<string | nul
     return trimmed.toUpperCase();
   }
 
-  // Try Amadeus API lookup first (supports any city/airport name)
+  // Try Google Places API lookup first (most reliable for city names)
+  // The improved searchAirportByCodeOrName now tries multiple strategies internally
   try {
-    console.log(`[FLIGHT_TOOL] Looking up airport code for: ${location}`);
+    console.log(`[FLIGHT_TOOL] Looking up airport code for: ${location} using Google Places API`);
+    const { googlePlacesClient } = await import('./google_places.js');
+    
+    // This now uses Autocomplete API, multiple search variations, and improved extraction
+    const directCode = await googlePlacesClient.searchAirportByCodeOrName(trimmed);
+    if (directCode) {
+      console.log(`[FLIGHT_TOOL] Found airport code via Google Places: ${location} -> ${directCode}`);
+      return directCode;
+    }
+    
+    // If searchAirportByCodeOrName didn't find a code, try findNearestAirports as additional strategy
+    // This uses nearby search which might find airports that text search missed
+    const airports = await googlePlacesClient.findNearestAirports(trimmed, 50000);
+    
+    if (airports && airports.length > 0) {
+      // Check multiple airports (not just the first one)
+      for (const airport of airports.slice(0, 3)) {
+        const iataCode = googlePlacesClient.extractIATACode(airport);
+        
+        if (iataCode) {
+          console.log(`[FLIGHT_TOOL] Found airport code via Google Places nearby search: ${location} -> ${iataCode}`);
+          return iataCode;
+        }
+        
+        // Try place details for this airport
+        try {
+          const details = await googlePlacesClient.getPlaceDetails(airport.place_id);
+          if (details) {
+            // Try extracting with updated details
+            const detailsCode = googlePlacesClient.extractIATACode({
+              ...airport,
+              name: details.name,
+              formatted_address: details.formatted_address,
+            });
+            if (detailsCode) {
+              console.log(`[FLIGHT_TOOL] Found airport code via Google Places details: ${location} -> ${detailsCode}`);
+              return detailsCode;
+            }
+            
+            // Check address components (rare but possible)
+            const airportCodeComponent = details.address_components?.find(
+              (comp: any) => comp.types.includes('airport') || comp.types.includes('iata_code')
+            );
+            if (airportCodeComponent) {
+              const code = airportCodeComponent.short_name.toUpperCase();
+              if (/^[A-Z]{3}$/.test(code)) {
+                console.log(`[FLIGHT_TOOL] Found airport code via address components: ${location} -> ${code}`);
+                return code;
+              }
+            }
+          }
+        } catch (detailError) {
+          // Continue to next airport
+          continue;
+        }
+      }
+      
+      // If we found airports but no IATA codes, log for potential Amadeus fallback
+      console.log(`[FLIGHT_TOOL] Google Places found airport(s) (e.g., "${airports[0].name}") but no IATA code. Will try Amadeus API.`);
+    }
+  } catch (error: any) {
+    console.warn(`[FLIGHT_TOOL] Google Places lookup failed for "${location}":`, error.message);
+    // Continue to Amadeus fallback
+  }
+
+  // Try Amadeus API lookup as fallback (best for getting IATA codes)
+  // Google Places finds airports well, but Amadeus provides IATA codes reliably
+  try {
+    console.log(`[FLIGHT_TOOL] Trying Amadeus API lookup for: ${location}`);
     const suggestions = await amadeusClient.getAirportSuggestions(trimmed);
     
     if (suggestions && suggestions.length > 0) {
@@ -123,7 +192,7 @@ export async function resolveAirportCode(location: string): Promise<string | nul
       if (airport) {
         const code = airport.iataCode || airport.address?.cityCode;
         if (code) {
-          console.log(`[FLIGHT_TOOL] Found airport code via API: ${location} -> ${code}`);
+          console.log(`[FLIGHT_TOOL] Found airport code via Amadeus API: ${location} -> ${code}`);
           return code.toUpperCase();
         }
       }
@@ -134,60 +203,43 @@ export async function resolveAirportCode(location: string): Promise<string | nul
       );
       if (city?.address?.cityCode) {
         const code = city.address.cityCode;
-        console.log(`[FLIGHT_TOOL] Found city code via API: ${location} -> ${code}`);
+        console.log(`[FLIGHT_TOOL] Found city code via Amadeus API: ${location} -> ${code}`);
         return code.toUpperCase();
       }
     }
   } catch (error: any) {
-    console.warn(`[FLIGHT_TOOL] API lookup failed for "${location}":`, error.message);
-    // Continue to fallback
+    console.warn(`[FLIGHT_TOOL] Amadeus API lookup failed for "${location}":`, error.message);
+    // Continue - all lookups failed
   }
-
-  // Fallback to hardcoded mappings for common cities (fast, no API call)
-  const cityToCode: Record<string, string> = {
-    'new york': 'JFK',
-    'nyc': 'JFK',
-    'new york city': 'JFK',
-    'los angeles': 'LAX',
-    'la': 'LAX',
-    'san francisco': 'SFO',
-    'sf': 'SFO',
-    'chicago': 'ORD',
-    'miami': 'MIA',
-    'london': 'LHR',
-    'paris': 'CDG',
-    'tokyo': 'NRT',
-    'sydney': 'SYD',
-    'dubai': 'DXB',
-    'singapore': 'SIN',
-    'hong kong': 'HKG',
-    'bangkok': 'BKK',
-    'amsterdam': 'AMS',
-    'frankfurt': 'FRA',
-    'madrid': 'MAD',
-    'rome': 'FCO',
-    'barcelona': 'BCN',
-    'istanbul': 'IST',
-    'moscow': 'SVO',
-    'beijing': 'PEK',
-    'shanghai': 'PVG',
-    'seoul': 'ICN',
-    'mumbai': 'BOM',
-    'delhi': 'DEL',
-    'cairo': 'CAI',
-    'johannesburg': 'JNB',
-    'sao paulo': 'GRU',
-    'mexico city': 'MEX',
-    'buenos aires': 'EZE',
-    'toronto': 'YYZ',
-    'vancouver': 'YVR',
-  };
-
-  const locationLower = trimmed.toLowerCase();
-  const hardcodedCode = cityToCode[locationLower];
-  if (hardcodedCode) {
-    console.log(`[FLIGHT_TOOL] Found airport code via hardcoded mapping: ${location} -> ${hardcodedCode}`);
-    return hardcodedCode;
+  
+  // If Google Places found an airport but Amadeus didn't return a code,
+  // try searching Amadeus with the airport name from Google Places
+  try {
+    const { googlePlacesClient } = await import('./google_places.js');
+    const airports = await googlePlacesClient.findNearestAirports(trimmed, 50000);
+    if (airports && airports.length > 0) {
+      const airportName = airports[0].name;
+      // Extract just the airport name (remove "International Airport", etc.)
+      const cleanName = airportName
+        .replace(/\s*(International|Regional|Municipal)\s*Airport.*/i, '')
+        .trim();
+      
+      console.log(`[FLIGHT_TOOL] Trying Amadeus API with airport name: ${cleanName}`);
+      const suggestions = await amadeusClient.getAirportSuggestions(cleanName);
+      
+      if (suggestions && suggestions.length > 0) {
+        const airport = suggestions.find((loc: any) => 
+          loc.subType === 'AIRPORT' && loc.iataCode
+        ) || suggestions.find((loc: any) => loc.iataCode);
+        
+        if (airport && airport.iataCode) {
+          console.log(`[FLIGHT_TOOL] Found airport code via Amadeus API with airport name: ${location} -> ${airport.iataCode}`);
+          return airport.iataCode.toUpperCase();
+        }
+      }
+    }
+  } catch (error: any) {
+    // Silent fail - this is a last resort attempt
   }
 
   console.warn(`[FLIGHT_TOOL] Could not resolve airport code for: ${location}`);

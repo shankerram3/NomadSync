@@ -4,6 +4,7 @@ import { getDatabase } from '../database.js';
 import { getCurrentUserId, AuthRequest } from '../utils/auth.js';
 import { checkTripAccess } from '../utils/trip_permissions.js';
 import { buildAgentGraph, TripIntent, ExecutionState } from '../agents/langgraph_workflow.js';
+import { sseService } from '../services/sse.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -54,10 +55,22 @@ router.post('/plan', getCurrentUserId, async (req: AuthRequest, res: Response) =
       planVersionId = await generatePlanFromTasks(validated.trip_id, intent, completedTasks);
     }
 
+    // Extract formatted flight data if available
+    const formattedFlights = completedTasks.display_flights?.status === 'success' 
+      ? completedTasks.display_flights.data 
+      : null;
+    
+    if (formattedFlights) {
+      console.log(`[AGENT_ROUTER] Found ${formattedFlights.length} formatted flight(s) for UI display`);
+    } else {
+      console.log('[AGENT_ROUTER] No formatted flights available (display_flights may not have been called or failed)');
+    }
+
     res.json({
       clarification: finalState.clarification,
       response: finalState.final_response,
       plan_version_id: planVersionId,
+      flights: formattedFlights, // Add structured flight data for UI
       intent: intent ? {
         original_message: intent.original_message,
         destinations: intent.destinations,
@@ -336,6 +349,18 @@ async function generatePlanFromTasks(
     };
 
     const result = await db.collection('plan_versions').insertOne(planDoc);
+    
+    // Broadcast plan update via SSE
+    const planResponse = {
+      id: result.insertedId.toString(),
+      trip_id: tripId,
+      version: planDoc.version,
+      itinerary: planDoc.itinerary,
+      created_by: planDoc.createdBy,
+      created_at: now,
+    };
+    sseService.broadcastPlan(tripId, planResponse);
+    
     return result.insertedId.toString();
   } catch (error) {
     // Log error but don't fail the agent workflow

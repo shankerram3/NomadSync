@@ -4,6 +4,7 @@ import { getDatabase } from '../database.js';
 import { ConflictCreateSchema } from '../models/conflict.js';
 import { getCurrentUserId, AuthRequest } from '../utils/auth.js';
 import { checkTripAccess } from '../utils/trip_permissions.js';
+import { sseService } from '../services/sse.js';
 
 const router = Router({ mergeParams: true });
 
@@ -43,13 +44,18 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
       { $set: { conflictId: result.insertedId } }
     );
     
-    res.status(201).json({
+    const conflictResponse = {
       id: result.insertedId.toString(),
       trip_id,
       message_id: validated.message_id,
       options: conflictDoc.options,
       created_at: conflictDoc.createdAt,
-    });
+    };
+    
+    // Broadcast conflict via SSE
+    sseService.broadcastConflict(trip_id, conflictResponse);
+    
+    res.status(201).json(conflictResponse);
   } catch (error: any) {
     if (error.name === 'ZodError') {
       res.status(400).json({ detail: 'Validation error', errors: error.errors });
@@ -108,6 +114,10 @@ router.post('/:conflict_id/vote', getCurrentUserId, async (req: AuthRequest, res
       { _id: new ObjectId(conflict_id) },
       { $set: { options: conflict.options } }
     );
+    
+    // Broadcast vote update via SSE
+    const voteCount = conflict.options[optionIndex].votes.length;
+    sseService.broadcastVote(trip_id, conflict_id, optionKey, voteCount);
     
     res.json({ message: 'Vote recorded' });
   } catch (error: any) {

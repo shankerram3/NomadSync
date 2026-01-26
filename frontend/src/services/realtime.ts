@@ -1,11 +1,12 @@
 /**
- * Real-time Updates Service
- * Polls for updates to messages, votes, and plan versions
+ * Real-time Updates Service using Server-Sent Events (SSE)
+ * Connects to SSE endpoint for push-based updates
  */
 
-import { messagesService, Message } from './messages';
-import { planService, PlanVersion } from './plan';
-import { conflictsService, Conflict } from './conflicts';
+import { Message } from './messages';
+import { PlanVersion } from './plan';
+import { Conflict } from './conflicts';
+import { apiClient } from '../lib/api';
 
 export interface RealtimeUpdate {
   type: 'message' | 'plan' | 'conflict' | 'vote';
@@ -21,82 +22,116 @@ export interface RealtimeCallbacks {
 }
 
 class RealtimeService {
-  private intervals: Map<string, NodeJS.Timeout> = new Map();
-  private lastMessageId: Map<string, string | null> = new Map();
+  private eventSources: Map<string, EventSource> = new Map();
   private lastPlanVersion: Map<string, number | null> = new Map();
-  private pollingInterval = 3000; // 3 seconds
 
   /**
-   * Start polling for updates on a trip
+   * Start SSE connection for real-time updates on a trip
    */
   startPolling(tripId: string, callbacks: RealtimeCallbacks): () => void {
-    // Stop existing polling for this trip
+    // Stop existing connection for this trip
     this.stopPolling(tripId);
 
-    const interval = setInterval(async () => {
+    // Get auth token from localStorage
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      console.error('[REALTIME] No auth token found');
+      return () => {};
+    }
+
+    // Create SSE connection with token as query parameter
+    // (EventSource doesn't support custom headers)
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const url = `${baseUrl}/api/trips/${tripId}/realtime?token=${encodeURIComponent(token)}`;
+    
+    const eventSource = new EventSource(url);
+
+    // Handle message events
+    eventSource.addEventListener('message', (event) => {
       try {
-        // Poll for new messages
-        const messages = await messagesService.getByTrip(tripId, 50);
-        if (messages.length > 0) {
-          const lastId = this.lastMessageId.get(tripId);
-          const newMessages = lastId
-            ? messages.filter(msg => {
-                // Find messages after the last known message
-                const msgIndex = messages.findIndex(m => m.id === lastId);
-                return msgIndex >= 0 && messages.indexOf(msg) > msgIndex;
-              })
-            : messages.slice(-5); // First load: get last 5
-
-          if (newMessages.length > 0) {
-            this.lastMessageId.set(tripId, messages[messages.length - 1].id);
-            newMessages.forEach(msg => callbacks.onMessage?.(msg));
-          }
+        const data = JSON.parse(event.data);
+        if (data.connected) {
+          console.log('[REALTIME] Connected to SSE stream');
+          return;
         }
-
-        // Poll for plan updates
-        try {
-          const latestPlan = await planService.get(tripId);
-          const lastVersion = this.lastPlanVersion.get(tripId);
-          
-          if (!lastVersion || latestPlan.version > lastVersion) {
-            this.lastPlanVersion.set(tripId, latestPlan.version);
-            callbacks.onPlanUpdate?.(latestPlan);
-          }
-        } catch {
-          // Plan may not exist yet
-        }
-
-        // Note: Vote updates are handled through message reloads
-        // When a vote is cast, the conflict message is updated, which triggers message polling
+        const message = data as Message;
+        callbacks.onMessage?.(message);
       } catch (error) {
-        console.error('[REALTIME] Polling error:', error);
+        console.error('[REALTIME] Error parsing message event:', error);
       }
-    }, this.pollingInterval);
+    });
 
-    this.intervals.set(tripId, interval);
+    // Handle plan events
+    eventSource.addEventListener('plan', (event) => {
+      try {
+        const plan = JSON.parse(event.data) as PlanVersion;
+        const lastVersion = this.lastPlanVersion.get(tripId);
+        
+        // Only trigger callback if version is newer
+        if (!lastVersion || plan.version > lastVersion) {
+          this.lastPlanVersion.set(tripId, plan.version);
+          callbacks.onPlanUpdate?.(plan);
+        }
+      } catch (error) {
+        console.error('[REALTIME] Error parsing plan event:', error);
+      }
+    });
+
+    // Handle conflict events
+    eventSource.addEventListener('conflict', (event) => {
+      try {
+        const conflict = JSON.parse(event.data) as Conflict;
+        callbacks.onConflictUpdate?.(conflict);
+      } catch (error) {
+        console.error('[REALTIME] Error parsing conflict event:', error);
+      }
+    });
+
+    // Handle vote events
+    eventSource.addEventListener('vote', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        callbacks.onVoteUpdate?.(data.conflict_id, data.option_key, data.votes);
+      } catch (error) {
+        console.error('[REALTIME] Error parsing vote event:', error);
+      }
+    });
+
+    // Handle connection errors
+    eventSource.onerror = (error) => {
+      console.error('[REALTIME] SSE connection error:', error);
+      // EventSource will automatically attempt to reconnect
+    };
+
+    // Handle connection open
+    eventSource.onopen = () => {
+      console.log('[REALTIME] SSE connection opened');
+    };
+
+    this.eventSources.set(tripId, eventSource);
 
     // Return cleanup function
     return () => this.stopPolling(tripId);
   }
 
   /**
-   * Stop polling for a trip
+   * Stop SSE connection for a trip
    */
   stopPolling(tripId: string): void {
-    const interval = this.intervals.get(tripId);
-    if (interval) {
-      clearInterval(interval);
-      this.intervals.delete(tripId);
-      this.lastMessageId.delete(tripId);
+    const eventSource = this.eventSources.get(tripId);
+    if (eventSource) {
+      eventSource.close();
+      this.eventSources.delete(tripId);
       this.lastPlanVersion.delete(tripId);
     }
   }
 
   /**
    * Set the last known message ID (after initial load)
+   * Note: No longer needed with SSE, but kept for compatibility
    */
   setLastMessageId(tripId: string, messageId: string): void {
-    this.lastMessageId.set(tripId, messageId);
+    // No-op with SSE
   }
 
   /**
@@ -108,9 +143,10 @@ class RealtimeService {
 
   /**
    * Update polling interval
+   * Note: No longer applicable with SSE, but kept for compatibility
    */
   setPollingInterval(ms: number): void {
-    this.pollingInterval = ms;
+    // No-op with SSE
   }
 }
 

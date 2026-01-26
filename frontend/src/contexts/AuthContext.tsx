@@ -26,12 +26,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           // Token invalid, clear it
           authService.logout();
+          setUser(null);
         }
       }
       setIsLoading(false);
     };
 
     checkAuth();
+
+    // Listen for unauthorized events (e.g., token expired during navigation)
+    const handleUnauthorized = () => {
+      authService.logout();
+      setUser(null);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {

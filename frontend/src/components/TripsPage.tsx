@@ -15,15 +15,18 @@ interface TripWithExtras extends Trip {
 
 export function TripsPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, isLoading: authLoading, isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [trips, setTrips] = useState<TripWithExtras[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadTrips();
-  }, []);
+    // Wait for auth to finish loading before making requests
+    if (!authLoading && isAuthenticated) {
+      loadTrips();
+    }
+  }, [authLoading, isAuthenticated]);
 
   const loadTrips = async () => {
     try {

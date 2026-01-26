@@ -63,4 +63,6 @@ export const config = {
   langsmithEndpoint: process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com',
   langsmithApiKey: process.env.LANGSMITH_API_KEY || '',
   langsmithProject: process.env.LANGSMITH_PROJECT || 'nomadsync',
+  // Google Places API Configuration
+  googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || '',
 };

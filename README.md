@@ -42,12 +42,10 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **Docker Support**: Full containerization for easy deployment
 - **Navigation**: Seamless navigation between trips dashboard and planner
 - **Dynamic Tooling System**: Flexible, extensible tool registry for agent capabilities
-- **Flight Booking Agent**: Integrated Amadeus API for real-time flight search
-- **Smart Airport Resolution**: Automatic airport code lookup from city names
-- **Agent Workflow**: LangGraph-powered AI agent with dynamic task planning
-- **Dynamic Tooling System**: Flexible, extensible tool registry for agent capabilities
-- **Flight Booking Agent**: Integrated Amadeus API for real-time flight search
-- **Smart Airport Resolution**: Automatic airport code lookup from city names
+- **Flight Search & Booking**: Integrated Amadeus API for real-time flight search and booking
+- **Smart Airport Resolution**: Dynamic airport code lookup using Google Places API and Amadeus API
+- **Flight UI Cards**: Beautiful flight card components displaying structured flight data
+- **Google Places Integration**: Dynamic location and airport lookup using Google Places API
 - **Agent Workflow**: LangGraph-powered AI agent with dynamic task planning
 - **Real-time Collaboration**: Polling-based live updates for messages, plans, and votes
 - **Plan Version History**: Timeline view of all plan versions with creation metadata
@@ -98,6 +96,7 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **LangGraph** - AI agent workflow orchestration (TypeScript implementation)
 - **OpenAI API** - LLM integration for AI agent
 - **Amadeus API** - Flight search and booking integration
+- **Google Places API** - Dynamic airport and location lookup
 - **JWT** (jsonwebtoken) - Token-based authentication
 - **Zod** - TypeScript-first schema validation
 - **TypeScript** - Type-safe JavaScript
@@ -189,6 +188,7 @@ This is the easiest way to get started:
    # - OPENAI_API_KEY (required for agent features)
    # - AMADEUS_API_KEY (required for flight search)
    # - AMADEUS_API_SECRET (required for flight search)
+   # - GOOGLE_PLACES_API_KEY (required for airport/location lookup)
    # - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
    ```
 
@@ -344,28 +344,42 @@ The real-time system automatically starts when you open a trip and stops when yo
 
 **Note**: Rollback creates a new version rather than deleting later versions, preserving full history.
 
-### Flight Booking Agent
+### Flight Search & Display
 
-The AI agent can automatically search for flights when you mention travel plans:
+The AI agent can automatically search for flights and display them as interactive flight cards:
 
 **Examples:**
 - "Find flights from New York to Tokyo on March 15th"
 - "I need to fly from JFK to LAX for 2 people"
-- "Search flights from San Francisco to Paris"
+- "Search flights from Tempe Arizona to San Francisco"
+- "I want to book a flight from Phoenix to SFO from feb 11th to feb 15th"
 
 **Features:**
-- **Smart Airport Resolution**: Automatically converts city names to airport codes
-- **Real-time Search**: Uses Amadeus API for live flight data
-- **Flexible Input**: Accepts airport codes (JFK, LAX) or city names (New York, Los Angeles)
+- **Smart Airport Resolution**: 
+  - Uses Google Places API to find nearest airports dynamically
+  - Cross-references with Amadeus API to get IATA codes
+  - Handles city names, airport names, or airport codes
+  - No hardcoded mappings - fully dynamic lookup
+- **Real-time Flight Search**: Uses Amadeus API for live flight data
+- **Flexible Input**: Accepts airport codes (JFK, LAX) or city names (New York, Tempe Arizona)
 - **Round-trip Support**: Handles both one-way and round-trip flights
-- **Price Comparison**: Shows multiple options with prices and airlines
+- **Flight UI Cards**: Beautiful, interactive flight cards showing:
+  - Airline name and logo
+  - Departure and arrival times
+  - Flight dates
+  - Prices with currency
+  - Best value indicators
+  - Return flight details (if applicable)
+- **Structured Data**: Flight information is displayed as UI components, not raw text
 
 **How it works:**
 1. You mention flight requirements in chat
 2. Agent extracts origin, destination, dates, and passengers
-3. System resolves airport codes (if needed)
-4. Searches Amadeus API for available flights
-5. Returns formatted results with prices and details
+3. System uses Google Places API to find nearest airports
+4. Cross-references with Amadeus API to get IATA codes
+5. Searches Amadeus API for available flights
+6. Formats flights for UI display using display_flights tool
+7. Returns structured flight data rendered as interactive cards
 
 ### Dynamic Tooling System
 
@@ -375,6 +389,12 @@ The agent uses a flexible tool registry system that allows new capabilities to b
 - **Metadata-driven**: Each tool includes descriptions, parameters, and examples
 - **LLM-aware**: Tools provide schemas for function calling
 - **Extensible**: Add new tools without modifying core code
+
+**Available Tools:**
+- **Flight Search** (`research:search_flights`): Search for flights using Amadeus API
+- **Flight Booking** (`booking:book_flights`): Book flights using Amadeus Flight Orders API
+- **Display Flights** (`research:display_flights`): Format flight data for UI display as flight cards
+- **Airport Lookup** (`research:lookup_airports`): Find nearest airports using Google Places API
 
 See [backend/DYNAMIC_TOOLING.md](backend/DYNAMIC_TOOLING.md) for details on creating new tools.
 
@@ -1542,6 +1562,7 @@ App.tsx
 | `AMADEUS_API_KEY` | Amadeus API key | Required for flight search |
 | `AMADEUS_API_SECRET` | Amadeus API secret | Required for flight search |
 | `AMADEUS_BASE_URL` | Amadeus API base URL | `https://test.api.amadeus.com` (test) or `https://api.amadeus.com` (production) |
+| `GOOGLE_PLACES_API_KEY` | Google Places API key | Required for airport/location lookup. Enable "Places API" and "Geocoding API" in Google Cloud Console |
 
 #### Frontend
 
@@ -1587,11 +1608,16 @@ NomadSync/
 │   │   │   └── agent.ts
 │   │   ├── services/        # Business logic and external APIs
 │   │   │   ├── amadeus.ts   # Amadeus flight API client
-│   │   │   ├── flight_tools.ts
+│   │   │   ├── google_places.ts  # Google Places API client
+│   │   │   ├── flight_tools.ts   # Airport code resolution utilities
 │   │   │   ├── tool_registry.ts  # Dynamic tool registry
 │   │   │   ├── tool_loader.ts    # Tool auto-discovery
+│   │   │   ├── sse.ts            # Server-Sent Events service
 │   │   │   └── tools/            # Registered tools
-│   │   │       └── flight_tool.ts
+│   │   │       ├── flight_tool.ts
+│   │   │       ├── flight_booking_tool.ts
+│   │   │       ├── display_flights_tool.ts
+│   │   │       └── airport_lookup_tool.ts
 │   │   ├── utils/           # Utility functions
 │   │   │   ├── auth.ts
 │   │   │   └── trip_permissions.ts
@@ -1638,8 +1664,9 @@ NomadSync/
 │   ├── tailwind.config.js
 │   └── tsconfig.json
 ├── docker-compose.yml
-├── Dockerfile              # Frontend Dockerfile
-├── nginx.conf
+├── Dockerfile              # Frontend Dockerfile (for docker-compose)
+├── nginx.conf.template     # Nginx config template for frontend
+├── railway.json            # Railway deployment config
 ├── .dockerignore
 └── README.md
 ```
@@ -1649,26 +1676,20 @@ NomadSync/
 ```bash
 # Backend tests (when implemented)
 cd backend
-pytest
-
-# With coverage
-pytest --cov=app --cov-report=html
-
-# Frontend tests (when implemented)
 npm test
 
-# Watch mode
-npm test -- --watch
+# Frontend tests (when implemented)
+cd frontend
+npm test
 ```
 
 ### Code Style
 
 #### Backend
-- Follow **PEP 8** style guide
-- Use type hints for all functions
+- Use **TypeScript** with strict mode
+- Follow **Node.js/Express.js** best practices
+- Use **ESLint** and **Prettier** for code formatting
 - Maximum line length: 100 characters
-- Use `Black` for formatting: `black app/`
-- Use `isort` for imports: `isort app/`
 
 #### Frontend
 - Use **TypeScript** with strict mode
@@ -1822,25 +1843,29 @@ Railway is recommended for production deployments. The application uses a **sing
 | `AMADEUS_API_KEY` | ✅ | Amadeus API key (for flight search) | Get from [Amadeus Developers](https://developers.amadeus.com/) |
 | `AMADEUS_API_SECRET` | ✅ | Amadeus API secret | Get from [Amadeus Developers](https://developers.amadeus.com/) |
 | `AMADEUS_BASE_URL` | ❌ | Amadeus API base URL | `https://test.api.amadeus.com` (test) or `https://api.amadeus.com` (production) |
+| `GOOGLE_PLACES_API_KEY` | ✅ | Google Places API key (for airport/location lookup) | Get from [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Enable "Places API" and "Geocoding API" |
 
 **Note:** `VITE_API_URL` is set to `/api` in the Dockerfile build, so no environment variable needed (frontend and backend are served from the same origin).
 
 ### Docker Production Build (Local/Private Server)
 
-1. **Build production images**
-   ```bash
-   docker-compose -f docker-compose.prod.yml build
-   ```
-
-2. **Set production environment variables**
+1. **Set production environment variables**
    ```bash
    export JWT_SECRET=<strong-secret>
    export OPENAI_API_KEY=<your-key>
+   export AMADEUS_API_KEY=<your-key>
+   export AMADEUS_API_SECRET=<your-secret>
+   export GOOGLE_PLACES_API_KEY=<your-key>
    ```
 
-3. **Start services**
+2. **Build and start services**
    ```bash
-   docker-compose -f docker-compose.prod.yml up -d
+   docker-compose up --build -d
+   ```
+
+3. **View logs**
+   ```bash
+   docker-compose logs -f
    ```
 
 ### Manual Deployment
@@ -1849,18 +1874,26 @@ Railway is recommended for production deployments. The application uses a **sing
 
 1. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   cd backend
+   npm install
    ```
 
-2. **Set environment variables**
+2. **Build TypeScript**
+   ```bash
+   npm run build
+   ```
+
+3. **Set environment variables**
    ```bash
    export MONGODB_URI=mongodb://your-mongo-host:27017
    export JWT_SECRET=<your-secret>
    # ... other variables
    ```
 
-3. **Run with production server**
+4. **Run with production server**
    ```bash
+   npm start
+   # or
    node dist/server.js
    ```
 
@@ -2058,8 +2091,10 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 - ✅ Docker containerization
 - ✅ Agent workflow integration
 - ✅ Dynamic tooling system
-- ✅ Flight booking agent (Amadeus API)
-- ✅ Smart airport code resolution
+- ✅ Flight search and booking (Amadeus API)
+- ✅ Google Places API integration for dynamic airport lookup
+- ✅ Flight UI cards with structured data display
+- ✅ Smart airport code resolution (no hardcoded mappings)
 - ✅ Dynamic task planning
 - ✅ Navigation improvements
 - ✅ Real-time collaboration (polling-based)
@@ -2071,7 +2106,7 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 ### In Progress (~10%)
 - 🚧 Memory auto-updates
 - 🚧 Additional tool integrations (hotels, weather, attractions)
-- 🚧 WebSocket/SSE upgrade for lower latency
+- 🚧 WebSocket/SSE upgrade for lower latency (currently using polling)
 
 ### Planned (~5%)
 - 📋 Advanced plan features (lock, regenerate with specific changes)
@@ -2099,10 +2134,10 @@ Contributions are welcome! Please follow these steps:
 4. **Test your changes**
    ```bash
    # Backend
-   cd backend && pytest
+   cd backend && npm test
    
    # Frontend
-   npm test
+   cd frontend && npm test
    ```
 
 5. **Commit your changes**
@@ -2143,6 +2178,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - UI components from [shadcn/ui](https://ui.shadcn.com/) - Beautiful React components
 - Agent workflows powered by [LangGraph](https://github.com/langchain-ai/langgraph) - AI agent orchestration
 - Flight data from [Amadeus API](https://developers.amadeus.com/) - Travel industry API
+- Location data from [Google Places API](https://developers.google.com/maps/documentation/places) - Dynamic airport and location lookup
 - Icons from [Lucide](https://lucide.dev/) - Icon library
 
 ## 📧 Contact & Support

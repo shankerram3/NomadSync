@@ -48,7 +48,12 @@ class ApiClient {
   }
 
   getAccessToken(): string | null {
-    return this.accessToken || localStorage.getItem('access_token');
+    // Always read from localStorage to get the latest token
+    // This ensures we have the most up-to-date token even after navigation
+    const token = localStorage.getItem('access_token');
+    // Keep cached value in sync
+    this.accessToken = token;
+    return token;
   }
 
   private async request<T>(
@@ -79,8 +84,10 @@ class ApiClient {
 
     if (!response.ok) {
       if (response.status === 401) {
-        // Token expired or invalid
+        // Token expired or invalid - clear token and let ProtectedRoute handle redirect
         this.setAccessToken(null);
+        // Dispatch a custom event that components can listen to
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         throw new Error('Unauthorized');
       }
 

@@ -4,6 +4,7 @@ import { getDatabase } from '../database.js';
 import { MessageCreateSchema } from '../models/message.js';
 import { getCurrentUserId, AuthRequest } from '../utils/auth.js';
 import { checkTripAccess } from '../utils/trip_permissions.js';
+import { sseService } from '../services/sse.js';
 
 const router = Router({ mergeParams: true });
 
@@ -43,6 +44,7 @@ router.get('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
       conflict_id: msg.conflictId?.toString() || null,
       plan_version_id: msg.planVersionId?.toString() || null,
       has_view_plan: msg.hasViewPlan || false,
+      flights: msg.flights || undefined,
       created_at: msg.createdAt,
     })));
   } catch (error: any) {
@@ -72,6 +74,7 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
       questions: validated.questions,
       hasViewPlan: validated.has_view_plan,
       planVersionId: validated.plan_version_id ? new ObjectId(validated.plan_version_id) : undefined,
+      flights: validated.flights || undefined,
       createdAt: now,
     };
     
@@ -83,7 +86,7 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
       { $set: { updatedAt: now } }
     );
     
-    res.status(201).json({
+    const messageResponse = {
       id: result.insertedId.toString(),
       trip_id,
       author_id: messageDoc.authorId?.toString() || null,
@@ -94,8 +97,14 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
       conflict_id: null,
       plan_version_id: messageDoc.planVersionId?.toString() || null,
       has_view_plan: messageDoc.hasViewPlan,
+      flights: messageDoc.flights || undefined,
       created_at: now,
-    });
+    };
+    
+    // Broadcast message via SSE
+    sseService.broadcastMessage(trip_id, messageResponse);
+    
+    res.status(201).json(messageResponse);
   } catch (error: any) {
     if (error.name === 'ZodError') {
       res.status(400).json({ detail: 'Validation error', errors: error.errors });

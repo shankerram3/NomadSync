@@ -14,6 +14,8 @@ export async function loadAllTools(): Promise<void> {
     // Import all tool modules - they will self-register
     await import('./tools/flight_tool.js');
     await import('./tools/flight_booking_tool.js');
+    await import('./tools/display_flights_tool.js');
+    await import('./tools/airport_lookup_tool.js');
     
     // Add more tool imports as they're created:
     // await import('./tools/hotel_tool.js');

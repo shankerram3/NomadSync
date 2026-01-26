@@ -1,17 +1,20 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
-import { Send, Bot, ArrowRight, Sparkles, MapPin, Calendar, DollarSign, Users } from 'lucide-react';
+import { Send, Bot, ArrowRight, Sparkles, MapPin, Calendar, DollarSign, Users, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '../services/messages';
 import { Conflict, conflictsService } from '../services/conflicts';
+import { FlightCard } from './FlightCard';
+import { parseFlightsFromText, hasFlightInfo } from '../utils/flightParser';
 
 interface ChatPanelProps {
   messages: Message[];
   onSendMessage: (content: string) => void;
   onVote: (messageId: string, conflictId: string, optionKey: string) => void;
   onViewPlan: () => void;
+  isAgentThinking?: boolean;
 }
 
-export function ChatPanel({ messages, onSendMessage, onVote, onViewPlan }: ChatPanelProps) {
+export function ChatPanel({ messages, onSendMessage, onVote, onViewPlan, isAgentThinking = false }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -63,6 +66,7 @@ export function ChatPanel({ messages, onSendMessage, onVote, onViewPlan }: ChatP
                 ) : null}
               </motion.div>
             ))}
+            {isAgentThinking && <AgentThinkingIndicator />}
           </AnimatePresence>
         )}
         <div ref={messagesEndRef} />
@@ -254,6 +258,28 @@ function AgentMessage({ message, onViewPlan }: { message: Message; onViewPlan: (
   };
 
   const hasPlanVersion = !!message.plan_version_id;
+  
+  // Use structured flight data if available, otherwise try to parse from text
+  const flights = message.flights && message.flights.length > 0 
+    ? message.flights 
+    : parseFlightsFromText(message.content);
+  const hasFlights = flights.length > 0;
+  
+  // Split content to show text before flights and after
+  let textBeforeFlights = message.content;
+  let textAfterFlights = '';
+  
+  // Only try to parse text if we don't have structured flights
+  if (!message.flights && hasFlights) {
+    const flightSectionIndex = message.content.indexOf('### Flight Options:');
+    if (flightSectionIndex !== -1) {
+      textBeforeFlights = message.content.substring(0, flightSectionIndex).trim();
+      const afterFlightsIndex = message.content.indexOf('### Best Value Option:');
+      if (afterFlightsIndex !== -1) {
+        textAfterFlights = message.content.substring(afterFlightsIndex).split('\n').slice(1).join('\n').trim();
+      }
+    }
+  }
 
   return (
     <div className="flex gap-3">
@@ -273,9 +299,27 @@ function AgentMessage({ message, onViewPlan }: { message: Message; onViewPlan: (
           )}
         </div>
         <div className="bg-blue-50 border border-blue-100 px-4 py-3 rounded-lg max-w-2xl">
-          <p className="text-sm text-gray-800 mb-2">{message.content}</p>
+          {textBeforeFlights && (
+            <p className="text-sm text-gray-800 mb-2">{textBeforeFlights}</p>
+          )}
+          
+          {hasFlights && (
+            <div className="mt-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">Flight Options:</h4>
+              <div className="space-y-3">
+                {flights.map((flight, index) => (
+                  <FlightCard key={index} flight={flight} index={index} />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {textAfterFlights && (
+            <p className="text-sm text-gray-800 mt-4">{textAfterFlights}</p>
+          )}
+          
           {message.summary && (
-            <p className="text-xs text-blue-700 mb-3 border-t border-blue-200 pt-2">
+            <p className="text-xs text-blue-700 mb-3 border-t border-blue-200 pt-2 mt-3">
               {message.summary}
             </p>
           )}
@@ -298,6 +342,30 @@ function AgentMessage({ message, onViewPlan }: { message: Message; onViewPlan: (
               <ArrowRight className="w-4 h-4" />
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgentThinkingIndicator() {
+  return (
+    <div className="flex gap-3">
+      <div className="flex-shrink-0">
+        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+          <Bot className="w-5 h-5 text-blue-600" />
+        </div>
+      </div>
+      <div className="flex-1">
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-sm font-medium text-blue-600">Travel Agent</span>
+          <span className="text-xs text-gray-500">thinking...</span>
+        </div>
+        <div className="bg-blue-50 border border-blue-100 px-4 py-3 rounded-lg max-w-2xl">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+            <span className="text-sm text-gray-600">Planning your trip...</span>
+          </div>
         </div>
       </div>
     </div>

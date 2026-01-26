@@ -11,9 +11,11 @@ import { agentService } from '../services/agent';
 import { tripsService, Trip } from '../services/trips';
 import { realtimeService } from '../services/realtime';
 import { RealtimeIndicator } from './RealtimeIndicator';
+import { useAuth } from '../contexts/AuthContext';
 
 export function TripPlanner() {
   const { id } = useParams<{ id: string }>();
+  const { isLoading: authLoading, isAuthenticated } = useAuth();
   const [activeRightTab, setActiveRightTab] = useState<'memory' | 'plan' | 'history'>('memory');
   const [messages, setMessages] = useState<Message[]>([]);
   const [tripMemory, setTripMemory] = useState<TripMemory | null>(null);
@@ -25,7 +27,8 @@ export function TripPlanner() {
   const [isRealtimeActive, setIsRealtimeActive] = useState(false);
 
   useEffect(() => {
-    if (id) {
+    // Wait for auth to finish loading before making requests
+    if (!authLoading && isAuthenticated && id) {
       loadTripData();
     }
 
@@ -35,7 +38,7 @@ export function TripPlanner() {
         realtimeService.stopPolling(id);
       }
     };
-  }, [id]);
+  }, [id, authLoading, isAuthenticated]);
 
   const loadTripData = async () => {
     if (!id) return;
@@ -152,6 +155,7 @@ export function TripPlanner() {
             content: agentResponse.response,
             has_view_plan: !!agentResponse.plan_version_id,
             plan_version_id: agentResponse.plan_version_id || undefined,
+            flights: agentResponse.flights || undefined,
           });
           setMessages(prev => [...prev, agentMessage]);
           
@@ -246,6 +250,7 @@ export function TripPlanner() {
         onSendMessage={handleSendMessage}
         onVote={handleVote}
         onViewPlan={() => setActiveRightTab('plan')}
+        isAgentThinking={isAgentThinking}
       />
       
       {/* Right Memory/Plan Panel */}

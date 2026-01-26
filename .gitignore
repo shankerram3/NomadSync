@@ -9,6 +9,14 @@ coverage/
 # Production
 dist/
 build/
+static/
+
+# Build artifacts
+*.tsbuildinfo
+*.d.ts
+!src/**/*.d.ts
+vite.config.d.ts
+vite.config.js
 
 # Environment variables
 .env
@@ -23,6 +31,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.log
+backend.log
+frontend.log
 
 # Editor directories and files
 .vscode/*

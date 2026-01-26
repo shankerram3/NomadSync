@@ -4,6 +4,7 @@ import { getDatabase } from '../database.js';
 import { PlanVersionCreateSchema } from '../models/plan.js';
 import { getCurrentUserId, AuthRequest } from '../utils/auth.js';
 import { checkTripAccess } from '../utils/trip_permissions.js';
+import { sseService } from '../services/sse.js';
 
 const router = Router({ mergeParams: true });
 
@@ -80,14 +81,19 @@ router.post('', getCurrentUserId, async (req: AuthRequest, res: Response) => {
     
     const result = await db.collection('plan_versions').insertOne(planDoc);
     
-    res.status(201).json({
+    const planResponse = {
       id: result.insertedId.toString(),
       trip_id,
       version: planDoc.version,
       itinerary: planDoc.itinerary,
       created_by: planDoc.createdBy,
       created_at: now,
-    });
+    };
+    
+    // Broadcast plan update via SSE
+    sseService.broadcastPlan(trip_id, planResponse);
+    
+    res.status(201).json(planResponse);
   } catch (error: any) {
     if (error.name === 'ZodError') {
       res.status(400).json({ detail: 'Validation error', errors: error.errors });

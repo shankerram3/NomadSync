@@ -500,6 +500,33 @@ export const executeTaskPlan = traceable(
 
       for (const task of readyTasks) {
         completedTasks[task.task_id] = await executeSingleTask(task, completedTasks);
+        
+        // Automatically format flights for UI display after flight search (success or partial)
+        // Check by action name since task_id may be dynamic (e.g., search_flights_123456)
+        const flightResult = completedTasks[task.task_id];
+        if (task.action === 'search_flights' && flightResult && 
+            (flightResult.status === 'success' || flightResult.status === 'partial') &&
+            flightResult.data && Array.isArray(flightResult.data) && flightResult.data.length > 0) {
+          try {
+            await ensureToolsLoaded();
+            const { toolRegistry } = await import('../services/tool_registry.js');
+            const displayResult = await toolRegistry.execute(
+              'research',
+              'display_flights',
+              { flight_data: completedTasks[task.task_id] },
+              completedTasks
+            );
+            if (displayResult.status === 'success') {
+              completedTasks.display_flights = displayResult;
+              console.log(`[AGENT] Successfully formatted ${displayResult.data?.length || 0} flight(s) for UI display`);
+            } else {
+              console.warn('[AGENT] Display flights tool returned non-success status:', displayResult.status, displayResult.message);
+            }
+          } catch (error) {
+            console.warn('[AGENT] Failed to format flights for display:', error);
+            // Don't fail the workflow if display formatting fails
+          }
+        }
       }
     }
 
@@ -558,29 +585,45 @@ export const synthesizeResponse = traceable(
 
     // Only include flight info if flights were actually requested or searched
     const flightsRequested = intent.requested_tasks && Array.isArray(intent.requested_tasks) && intent.requested_tasks.includes('flights');
-    const flightResults = completedTasks.search_flights;
     
-    let flightInfo = '';
-    if (flightsRequested && flightResults) {
-      flightInfo = flightResults?.status === 'success' 
-        ? `Found ${flightResults.count || 0} flight options. Cheapest: ${flightResults.currency || ''}${flightResults.total_price || 'N/A'}. ${flightResults.count || 0} options available.`
-        : flightResults?.status === 'error'
-        ? `Flight search encountered an error: ${flightResults.message}`
-        : flightResults?.status === 'no_results'
-        ? 'No flights found for the given criteria. Try adjusting dates or destinations.'
-        : flightResults?.status === 'not_implemented'
-        ? 'Flight search is not yet connected.'
-        : 'Flight search was attempted but did not complete.';
+    // Find flight search result (task_id may be dynamic like search_flights_123456)
+    let flightResults: any = null;
+    for (const [taskId, result] of Object.entries(completedTasks)) {
+      if (taskId.startsWith('search_flights') && result && typeof result === 'object' && 'status' in result) {
+        flightResults = result;
+        break;
+      }
     }
+    
+    // Also check for display_flights result
+    const displayFlightsResult = completedTasks.display_flights;
+    
+    // Determine if flights are available in structured format for UI
+    const hasStructuredFlights = displayFlightsResult?.status === 'success' && 
+                                  displayFlightsResult.data && 
+                                  Array.isArray(displayFlightsResult.data) && 
+                                  displayFlightsResult.data.length > 0;
 
     // Build response context
     const responseParts: string[] = [];
     
-    if (flightInfo) {
-      responseParts.push(`FLIGHT SEARCH RESULTS:\n${flightInfo}`);
-      if (flightResults?.status === 'success' && flightResults.data) {
-        responseParts.push(`\nTop flight options:\n${JSON.stringify(flightResults.data.slice(0, 3), null, 2)}`);
+    // Only include flight info in text if structured flights are NOT available
+    // If structured flights are available, they will be shown in UI cards, so don't duplicate in text
+    if (flightsRequested && flightResults && !hasStructuredFlights) {
+      // No structured flights available - provide error or status info
+      if (flightResults.status === 'error') {
+        responseParts.push(`FLIGHT SEARCH RESULTS:\nFlight search encountered an error: ${flightResults.message || 'Unknown error'}`);
+      } else if (flightResults.status === 'no_results') {
+        responseParts.push(`FLIGHT SEARCH RESULTS:\nNo flights found for the given criteria. Try adjusting dates or destinations.`);
+      } else if (flightResults.status === 'not_implemented') {
+        responseParts.push(`FLIGHT SEARCH RESULTS:\nFlight search is not yet connected.`);
+      } else if (flightResults.status === 'partial' || flightResults.status === 'success') {
+        // Flight search completed but formatting failed - mention briefly without details
+        responseParts.push(`FLIGHT SEARCH RESULTS:\nFlight search completed. Processing results...`);
       }
+    } else if (flightsRequested && hasStructuredFlights) {
+      // Structured flights are available - just mention success, no details
+      responseParts.push(`FLIGHT SEARCH RESULTS:\nFound ${displayFlightsResult.data.length} flight option(s) for you.`);
     }
     
     const otherResults: string[] = [];
@@ -610,10 +653,16 @@ ${responseParts.length > 0 ? `\nHere's what I found:\n${responseParts.join('\n')
 
 Instructions:
 - Respond naturally and conversationally to what the user actually asked.
-- ${flightsRequested ? 'If flights were found, present them in a user-friendly format with prices, times, and airlines. Highlight the best value option.' : 'DO NOT mention flights unless the user explicitly asked about them.'}
-- ${flightsRequested && flightResults?.status === 'error' ? 'If there were errors, explain what went wrong and suggest alternatives.' : ''}
+- ${hasStructuredFlights ? 'CRITICAL: Flight search was successful and flight data is available in structured format. The flight details will be displayed as interactive cards in the UI. DO NOT list flight details, prices, times, airlines, departure/arrival times, durations, layovers, or ANY flight information in your text response. Keep your response very brief - just acknowledge that you found flights. Example responses: "I found some flight options for you! Check out the flight cards below." or "Great! I found flight options for your trip. See the details in the cards below." DO NOT include any flight details, prices, or times in your response.' : ''}
+- ${flightsRequested && flightResults?.status === 'success' && !hasStructuredFlights ? 'Flight search was successful but formatting for UI failed. Provide a brief summary without listing all details.' : ''}
+- ${flightsRequested && flightResults?.status === 'partial' && hasStructuredFlights ? 'Flight search completed with partial results. Flight data is available in structured format. DO NOT list flight details in text - they will be shown in UI cards. Just acknowledge you found some options.' : ''}
+- ${flightsRequested && flightResults?.status === 'error' ? `IMPORTANT: The flight search failed with error: ${flightResults.message || 'Unknown error'}. DO NOT invent or make up flight details. Explain the error honestly and suggest the user try different search terms (e.g., use airport codes like PHX instead of "Tempe Arizona", or try "Phoenix" instead).` : ''}
+- ${flightsRequested && !flightResults ? 'Flight search was requested but no results are available. DO NOT make up flight details. Ask the user to provide more specific information.' : ''}
+- ${!flightsRequested ? 'DO NOT mention flights unless the user explicitly asked about them.' : ''}
 - If the user's message was vague or unclear, ask clarifying questions about what they'd like help with.
-- Be helpful and friendly, but don't assume they want information they didn't ask for.`;
+- Be helpful and friendly, but don't assume they want information they didn't ask for.
+- NEVER invent or make up flight prices, times, or airline names. Only use real data from successful searches.
+- When structured flight data is available for UI display, keep your response brief and let the UI show the details.`;
 
     const client = openaiClient();
     const response = await client.chat.completions.create({
