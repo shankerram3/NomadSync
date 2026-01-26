@@ -768,36 +768,36 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Express.js Application"
-        Main[main.py<br/>App Initialization<br/>- CORS Middleware<br/>- DB Connection<br/>- Static File Serving]
+        Main[server.ts<br/>App Initialization<br/>- CORS Middleware<br/>- DB Connection<br/>- Static File Serving]
         
         subgraph "API Routers"
-            AuthRouter[auth.py<br/>- /auth/register<br/>- /auth/login<br/>- /auth/refresh]
-            TripsRouter[trips.py<br/>- GET/POST /trips<br/>- GET/PATCH /trips/{id}]
-            MessagesRouter[messages.py<br/>- GET/POST /trips/{id}/messages]
-            MemoryRouter[memory.py<br/>- GET/PATCH /trips/{id}/memory]
-            PlanRouter[plan.py<br/>- GET/POST /trips/{id}/plan]
-            ConflictsRouter[conflicts.py<br/>- GET /trips/{id}/conflicts<br/>- POST /conflicts/{id}/vote]
-            AgentRouter[agent.py<br/>- POST /agents/plan]
+            AuthRouter[auth.ts<br/>- /auth/register<br/>- /auth/login<br/>- /auth/refresh]
+            TripsRouter[trips.ts<br/>- GET/POST /trips<br/>- GET/PATCH /trips/:id]
+            MessagesRouter[messages.ts<br/>- GET/POST /trips/:id/messages]
+            MemoryRouter[memory.ts<br/>- GET/PATCH /trips/:id/memory]
+            PlanRouter[plan.ts<br/>- GET/POST /trips/:id/plan<br/>- POST /trips/:id/plan/rollback]
+            ConflictsRouter[conflicts.ts<br/>- GET /trips/:id/conflicts<br/>- POST /conflicts/:id/vote]
+            AgentRouter[agent.ts<br/>- POST /agents/plan]
         end
         
         subgraph "Middleware & Utils"
             JWTMiddleware[Auth Middleware<br/>- Token validation<br/>- User extraction<br/>- Permission checks]
-            TripPermissions[trip_permissions.py<br/>- Role checking<br/>- Access control]
-            AuthUtils[auth.py<br/>- Password hashing<br/>- Token generation]
+            TripPermissions[trip_permissions.ts<br/>- Role checking<br/>- Access control]
+            AuthUtils[auth.ts<br/>- Password hashing<br/>- Token generation]
         end
         
         subgraph "Models"
-            UserModel[user.py]
-            TripModel[trip.py]
-            MessageModel[message.py]
-            MemoryModel[memory.py]
-            PlanModel[plan.py]
-            ConflictModel[conflict.py]
+            UserModel[user.ts]
+            TripModel[trip.ts]
+            MessageModel[message.ts]
+            MemoryModel[memory.ts]
+            PlanModel[plan.ts]
+            ConflictModel[conflict.ts]
         end
         
         subgraph "Services"
-            Database[database.py<br/>- MongoDB connection<br/>- Async operations<br/>- Connection pooling]
-            LangGraphWorkflow[langgraph_workflow.py<br/>- Agent orchestration<br/>- OpenAI integration<br/>- Task execution]
+            Database[database.ts<br/>- MongoDB connection<br/>- Async operations<br/>- Connection pooling]
+            LangGraphWorkflow[langgraph_workflow.ts<br/>- Agent orchestration<br/>- OpenAI integration<br/>- Task execution]
         end
     end
     
