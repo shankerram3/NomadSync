@@ -13,6 +13,7 @@ export async function loadAllTools(): Promise<void> {
   try {
     // Import all tool modules - they will self-register
     await import('./tools/flight_tool.js');
+    await import('./tools/flight_booking_tool.js');
     
     // Add more tool imports as they're created:
     // await import('./tools/hotel_tool.js');

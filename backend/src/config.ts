@@ -58,4 +58,9 @@ export const config = {
   amadeusApiKey: process.env.AMADEUS_API_KEY || '',
   amadeusApiSecret: process.env.AMADEUS_API_SECRET || '',
   amadeusBaseUrl: process.env.AMADEUS_BASE_URL || 'https://test.api.amadeus.com',
+  // LangSmith Configuration
+  langsmithTracing: process.env.LANGSMITH_TRACING === 'true',
+  langsmithEndpoint: process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com',
+  langsmithApiKey: process.env.LANGSMITH_API_KEY || '',
+  langsmithProject: process.env.LANGSMITH_PROJECT || 'nomadsync',
 };

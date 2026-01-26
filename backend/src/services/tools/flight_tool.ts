@@ -66,7 +66,7 @@ const flightToolMetadata: ToolMetadata = {
       },
       output: {
         status: 'success',
-        data: [{ id: '...', price: { total: 1200, currency: 'USD' }, ... }],
+        data: [{ id: 'flight_123', price: { total: 1200, currency: 'USD' }, airline: 'Example Airline', departure: '2024-03-15T10:00:00', arrival: '2024-03-16T14:30:00' }],
         count: 10,
       },
     },
@@ -129,13 +129,23 @@ async function searchFlights(
     // Format results
     const formatted = formatFlightResults(flightData);
 
+    // Preserve original flight offers for booking
+    const flightsWithOriginalData = formatted.flights.map((formattedFlight: any, index: number) => {
+      const originalOffer = flightData.data[index];
+      return {
+        ...formattedFlight,
+        _originalOffer: originalOffer, // Preserve original Amadeus FlightOffer for booking
+      };
+    });
+
     return {
       status: formatted.status === 'success' ? 'success' : 'partial',
-      data: formatted.flights,
+      data: flightsWithOriginalData,
       message: formatted.message || `Found ${formatted.flights.length} flight options`,
       metadata: {
         provider: 'Amadeus',
         timestamp: new Date().toISOString(),
+        originalOffers: flightData.data, // Also include all original offers in metadata
       },
     };
   } catch (error: any) {

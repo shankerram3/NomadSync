@@ -45,8 +45,17 @@ app.use((req: Request, res: Response, next: any) => {
   // Response logging
   res.on('finish', () => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.path} -> ${res.statusCode}`);
-    if (res.statusCode >= 400) {
+    // Suppress logging for common non-error cases in development
+    const isStaticFileRequest = req.path === '/' || req.path.startsWith('/assets/') || req.path === '/favicon.ico';
+    const isExpected404 = isStaticFileRequest && res.statusCode === 404;
+    const is304 = res.statusCode === 304;
+    
+    // Only log if it's an actual error or not a common development case
+    if (!isExpected404 && !is304) {
+      console.log(`[${timestamp}] ${req.method} ${req.path} -> ${res.statusCode}`);
+    }
+    
+    if (res.statusCode >= 400 && !isExpected404) {
       // Note: response body is already sent, so we can't log it here
       // But we log it in the route handlers
     }
@@ -96,6 +105,8 @@ app.get('/', (req: Request, res: Response) => {
   const indexPath = path.join(staticDir, 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
+      // In development, frontend runs separately - this is expected
+      // Silently return 404 without logging (logging middleware will suppress it)
       res.status(404).json({ detail: 'Frontend not built. Please build the frontend first.' });
     }
   });
@@ -118,6 +129,8 @@ app.get('*', (req: Request, res: Response) => {
   const indexPath = path.join(staticDir, 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
+      // In development, frontend runs separately - this is expected
+      // Silently return 404 without logging (logging middleware will suppress it)
       res.status(404).json({ detail: 'Frontend not built. Please build the frontend first.' });
     }
   });

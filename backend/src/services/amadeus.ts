@@ -155,6 +155,105 @@ class AmadeusClient {
   }
 
   /**
+   * Create a flight order (book flights)
+   * Requires flight offers from search, traveler information, and payment details
+   */
+  async createFlightOrder(orderData: {
+    flightOffers: any[];
+    travelers: Array<{
+      id: string;
+      dateOfBirth: string;
+      name: {
+        firstName: string;
+        lastName: string;
+      };
+      gender?: 'MALE' | 'FEMALE' | 'UNSPECIFIED' | 'UNDISCLOSED';
+      contact?: {
+        emailAddress: string;
+        phones?: Array<{
+          deviceType: 'MOBILE' | 'LANDLINE' | 'FAX';
+          countryCallingCode: string;
+          number: string;
+        }>;
+      };
+      documents?: Array<{
+        documentType: 'PASSPORT' | 'IDENTITY_CARD' | 'VISA' | 'KNOWN_TRAVELER' | 'REDRESS';
+        number: string;
+        expiryDate?: string;
+        issuanceCountry?: string;
+        nationality?: string;
+        holder?: boolean;
+      }>;
+    }>;
+    remarks?: {
+      general?: Array<{
+        subType: string;
+        text: string;
+      }>;
+    };
+    ticketingAgreement?: {
+      option: 'CONFIRM' | 'DELAY_TO_QUEUE' | 'DELAY_TO_CANCEL';
+      delay?: string;
+    };
+    contacts?: Array<{
+      addresseeName?: {
+        firstName: string;
+        lastName: string;
+      };
+      companyName?: string;
+      purpose?: 'STANDARD' | 'INVOICE' | 'STANDARD_WITHOUT_TRANSMISSION';
+      phones?: Array<{
+        deviceType: 'MOBILE' | 'LANDLINE' | 'FAX';
+        countryCallingCode: string;
+        number: string;
+      }>;
+      emailAddress?: string;
+      address?: {
+        lines: string[];
+        postalCode?: string;
+        cityName?: string;
+        countryCode: string;
+      };
+    }>;
+  }): Promise<any> {
+    const token = await this.getAccessToken();
+
+    const requestBody = {
+      data: {
+        type: 'flight-order',
+        flightOffers: orderData.flightOffers,
+        travelers: orderData.travelers,
+        ...(orderData.remarks && { remarks: orderData.remarks }),
+        ...(orderData.ticketingAgreement && { ticketingAgreement: orderData.ticketingAgreement }),
+        ...(orderData.contacts && { contacts: orderData.contacts }),
+      },
+    };
+
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/booking/flight-orders`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/vnd.amadeus+json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AMADEUS] Flight booking error:', response.status, errorText);
+        throw new Error(`Flight booking failed: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      console.error('[AMADEUS] Flight booking request error:', error);
+      throw new Error(`Failed to create flight order: ${error.message}`);
+    }
+  }
+
+  /**
    * Get airport/city suggestions (for autocomplete)
    * Returns locations matching the keyword with IATA codes
    */

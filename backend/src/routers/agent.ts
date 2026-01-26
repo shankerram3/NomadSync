@@ -100,6 +100,15 @@ async function updateMemoryFromIntent(tripId: string, intent: TripIntent, messag
     const db = getDatabase();
     const memoryUpdates: Record<string, any> = {};
 
+    // Update origin
+    if (intent.origin) {
+      memoryUpdates.origin = {
+        value: intent.origin,
+        confidence: 80,
+        sources: messageRef ? [messageRef] : [],
+      };
+    }
+
     // Update destination
     if (intent.destinations && intent.destinations.length > 0) {
       const destinationStr = intent.destinations.join(', ');
@@ -110,7 +119,7 @@ async function updateMemoryFromIntent(tripId: string, intent: TripIntent, messag
       };
     }
 
-    // Update dates
+    // Update dates - store both formatted string and structured dates
     if (intent.start_date || intent.end_date) {
       let datesStr = '';
       if (intent.start_date && intent.end_date) {
@@ -126,6 +135,9 @@ async function updateMemoryFromIntent(tripId: string, intent: TripIntent, messag
           value: datesStr,
           confidence: 85,
           sources: messageRef ? [messageRef] : [],
+          // Also store structured dates for easier retrieval
+          start_date: intent.start_date,
+          end_date: intent.end_date,
         };
       }
     }

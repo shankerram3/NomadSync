@@ -36,6 +36,12 @@ export function createDynamicTasks(
       const toolDesc = tool.metadata.description.toLowerCase();
       const taskLower = requestedTask.toLowerCase();
       
+      // Skip booking tools unless explicitly requested for booking
+      // Booking tools should only be used after search results are available
+      if (tool.metadata.category === 'booking' && requestedTask !== 'booking') {
+        return false;
+      }
+      
       return (
         toolName.includes(taskLower) ||
         toolDesc.includes(taskLower) ||
@@ -43,9 +49,12 @@ export function createDynamicTasks(
       );
     });
 
-    // If no matching tools, try category-based search
+    // If no matching tools, try category-based search (but skip booking category)
     if (matchingTools.length === 0) {
       for (const category of categories) {
+        if (category === 'booking' && requestedTask !== 'booking') {
+          continue; // Skip booking tools unless explicitly requested
+        }
         const categoryTools = toolRegistry.getByCategory(category as any);
         matchingTools.push(...categoryTools);
       }
@@ -53,6 +62,13 @@ export function createDynamicTasks(
 
     // Create task for each matching tool
     for (const tool of matchingTools) {
+      // Skip booking tools unless we have the required booking parameters
+      if (tool.metadata.category === 'booking') {
+        // Booking tools require flight_offer_id or flight_offer_data
+        // These are only available after a flight search, so skip during initial planning
+        continue;
+      }
+      
       const taskId = `${tool.metadata.action}_${Date.now()}`;
       const parameters = extractParametersForTool(tool, intent, tripMemory);
       
