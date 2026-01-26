@@ -3,20 +3,20 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy frontend package files (build context should be project root)
-COPY package*.json ./
-COPY vite.config.ts ./
-COPY tsconfig.json ./
-COPY tsconfig.node.json ./
-COPY tailwind.config.js ./
-COPY postcss.config.js ./
+# Copy frontend package files (build context = project root)
+COPY frontend/package*.json ./
+COPY frontend/vite.config.ts ./
+COPY frontend/tsconfig.json ./
+COPY frontend/tsconfig.node.json ./
+COPY frontend/tailwind.config.js ./
+COPY frontend/postcss.config.js ./
 
 # Install frontend dependencies
 RUN npm ci
 
 # Copy frontend source code
-COPY index.html ./
-COPY src ./src
+COPY frontend/index.html ./
+COPY frontend/src ./src
 
 # Build argument for API URL (empty since we're serving from same origin)
 ARG VITE_API_URL=/api

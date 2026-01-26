@@ -86,136 +86,6 @@ const displayFlightsToolMetadata: ToolMetadata = {
   timeout: 5000,
 };
 
-// Airline code to name mapping (IATA codes)
-const AIRLINE_NAMES: Record<string, string> = {
-  // Major US Airlines
-  'WN': 'Southwest Airlines',
-  'AA': 'American Airlines',
-  'DL': 'Delta Air Lines',
-  'UA': 'United Airlines',
-  'AS': 'Alaska Airlines',
-  'B6': 'JetBlue Airways',
-  'F9': 'Frontier Airlines',
-  'NK': 'Spirit Airlines',
-  'G4': 'Allegiant Air',
-  'SY': 'Sun Country Airlines',
-  'HA': 'Hawaiian Airlines',
-  
-  // Middle East Airlines
-  'EK': 'Emirates',
-  'QR': 'Qatar Airways',
-  'EY': 'Etihad Airways',
-  'SV': 'Saudia',
-  'GF': 'Gulf Air',
-  'KU': 'Kuwait Airways',
-  'RJ': 'Royal Jordanian',
-  'MS': 'EgyptAir',
-  'OM': 'Mongolian Airlines',
-  
-  // European Airlines
-  'AF': 'Air France',
-  'LH': 'Lufthansa',
-  'BA': 'British Airways',
-  'KL': 'KLM Royal Dutch Airlines',
-  'IB': 'Iberia',
-  'AZ': 'ITA Airways',
-  'SN': 'Brussels Airlines',
-  'LX': 'Swiss International Air Lines',
-  'OS': 'Austrian Airlines',
-  'SK': 'SAS Scandinavian Airlines',
-  'TP': 'TAP Air Portugal',
-  'AY': 'Finnair',
-  'LO': 'LOT Polish Airlines',
-  'OK': 'Czech Airlines',
-  'TK': 'Turkish Airlines',
-  'A3': 'Aegean Airlines',
-  'FR': 'Ryanair',
-  'U2': 'easyJet',
-  'VY': 'Vueling',
-  'EW': 'Eurowings',
-  
-  // Asian Airlines
-  'AI': 'Air India',
-  'SG': 'SpiceJet',
-  '6E': 'IndiGo',
-  '9W': 'Jet Airways',
-  'IX': 'Air India Express',
-  'G8': 'Go First',
-  'SQ': 'Singapore Airlines',
-  'CX': 'Cathay Pacific',
-  'TG': 'Thai Airways',
-  'MH': 'Malaysia Airlines',
-  'GA': 'Garuda Indonesia',
-  'JL': 'Japan Airlines',
-  'NH': 'All Nippon Airways',
-  'KE': 'Korean Air',
-  'OZ': 'Asiana Airlines',
-  'CI': 'China Airlines',
-  'BR': 'EVA Air',
-  'PR': 'Philippine Airlines',
-  '5J': 'Cebu Pacific',
-  'VN': 'Vietnam Airlines',
-  'QF': 'Qantas',
-  'JQ': 'Jetstar Airways',
-  'VA': 'Virgin Australia',
-  
-  // African Airlines
-  'ET': 'Ethiopian Airlines',
-  'SA': 'South African Airways',
-  'KQ': 'Kenya Airways',
-  'WB': 'RwandAir',
-  'AT': 'Royal Air Maroc',
-  
-  // Latin American Airlines
-  'LA': 'LATAM Airlines',
-  'AV': 'Avianca',
-  'CM': 'Copa Airlines',
-  'AR': 'Aerolíneas Argentinas',
-  'AM': 'Aeroméxico',
-  'VB': 'VivaAerobus',
-  'VB': 'Volaris',
-  
-  // Canadian Airlines
-  'AC': 'Air Canada',
-  'WS': 'WestJet',
-  
-  // Other Major Airlines
-  'VS': 'Virgin Atlantic',
-  'NZ': 'Air New Zealand',
-  'FJ': 'Fiji Airways',
-  'WY': 'Oman Air',
-  'UL': 'SriLankan Airlines',
-  'BG': 'Biman Bangladesh Airlines',
-  'PK': 'Pakistan International Airlines',
-  'PG': 'Bangkok Airways',
-  'MI': 'SilkAir',
-  'TR': 'Tigerair',
-  '3K': 'Jetstar Asia',
-  'FD': 'Thai AirAsia',
-  'AK': 'AirAsia',
-  'D7': 'AirAsia X',
-  'Z2': 'AirAsia Zest',
-  'QZ': 'Indonesia AirAsia',
-  'I5': 'AirAsia India',
-  'XJ': 'Thai AirAsia X',
-  
-  // Low Cost Carriers
-  'NK': 'Spirit Airlines',
-  'F9': 'Frontier Airlines',
-  'G4': 'Allegiant Air',
-  'SY': 'Sun Country Airlines',
-  
-  // Regional Airlines
-  'YX': 'Republic Airways',
-  'MQ': 'Envoy Air',
-  'OH': 'PSA Airlines',
-  '9E': 'Endeavor Air',
-  'OO': 'SkyWest Airlines',
-  'YV': 'Mesa Airlines',
-  'QX': 'Horizon Air',
-  '9K': 'Cape Air',
-};
-
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const options: Intl.DateTimeFormatOptions = {
@@ -236,8 +106,22 @@ function formatTime(dateString: string): string {
   return date.toLocaleTimeString('en-US', options);
 }
 
-function getAirlineName(code: string): string {
-  return AIRLINE_NAMES[code] || code;
+/**
+ * Get airline name dynamically from Amadeus API
+ * Falls back to code if API call fails
+ */
+async function getAirlineName(code: string): Promise<string> {
+  if (!code || code.length !== 2) {
+    return code;
+  }
+
+  try {
+    const { amadeusClient } = await import('../amadeus.js');
+    return await amadeusClient.getAirlineName(code);
+  } catch (error: any) {
+    console.warn(`[DISPLAY_FLIGHTS_TOOL] Failed to get airline name for ${code}:`, error.message);
+    return code;
+  }
 }
 
 async function displayFlights(
@@ -276,6 +160,40 @@ async function displayFlights(
       })
     );
 
+    // Collect all unique airline codes from all flights for batch lookup
+    const allAirlineCodes = new Set<string>();
+    flights.forEach((flight: any) => {
+      const outbound = flight.outbound || flight.itineraries?.[0];
+      const returnFlight = flight.return || flight.itineraries?.[1];
+      
+      const outboundSegments = outbound?.segments || [];
+      outboundSegments.forEach((seg: any) => {
+        const code = seg.airline || seg.carrierCode;
+        if (code && code.length === 2) allAirlineCodes.add(code.toUpperCase());
+      });
+      
+      if (returnFlight) {
+        const returnSegments = returnFlight.segments || [];
+        returnSegments.forEach((seg: any) => {
+          const code = seg.airline || seg.carrierCode;
+          if (code && code.length === 2) allAirlineCodes.add(code.toUpperCase());
+        });
+      }
+    });
+
+    // Batch fetch all airline names at once
+    let airlineNamesMap: Record<string, string> = {};
+    try {
+      const { amadeusClient } = await import('../amadeus.js');
+      airlineNamesMap = await amadeusClient.getAirlineNames(Array.from(allAirlineCodes));
+    } catch (error: any) {
+      console.warn('[DISPLAY_FLIGHTS_TOOL] Failed to batch fetch airline names:', error.message);
+      // Initialize with codes as fallback
+      Array.from(allAirlineCodes).forEach(code => {
+        airlineNamesMap[code] = code;
+      });
+    }
+
     // Format flights for UI
     const formattedFlights = flights.map((flight: any) => {
       // Extract price
@@ -307,7 +225,9 @@ async function displayFlights(
 
       // Get airline code from first segment
       const airlineCode = firstOutboundSegment.airline || firstOutboundSegment.carrierCode || 'UNKNOWN';
-      const airlineName = getAirlineName(airlineCode);
+      
+      // Get airline name from the pre-fetched map
+      const airlineName = airlineNamesMap[airlineCode.toUpperCase()] || airlineCode;
 
       // Format outbound
       const departureTime = firstOutboundSegment.departure?.time || firstOutboundSegment.departure?.at;

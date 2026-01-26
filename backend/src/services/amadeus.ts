@@ -311,6 +311,140 @@ class AmadeusClient {
       throw new Error(`Failed to search airports: ${error.message}`);
     }
   }
+
+  /**
+   * Get airline name by IATA code
+   * Uses Amadeus Reference Data API to fetch airline information dynamically
+   * Results are cached to avoid repeated API calls
+   */
+  private airlineCache: Map<string, { name: string; timestamp: number }> = new Map();
+  private readonly CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days cache
+
+  async getAirlineName(airlineCode: string): Promise<string> {
+    if (!airlineCode || airlineCode.length !== 2) {
+      return airlineCode;
+    }
+
+    const code = airlineCode.toUpperCase();
+
+    // Check cache first
+    const cached = this.airlineCache.get(code);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.name;
+    }
+
+    try {
+      const token = await this.getAccessToken();
+      
+      // Use Amadeus Reference Data API for airlines
+      const response = await fetch(
+        `${this.baseUrl}/v1/reference-data/airlines?airlineCodes=${code}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data && data.data.length > 0) {
+          const airline = data.data[0];
+          const airlineName = airline.businessName || airline.commonName || code;
+          
+          // Cache the result
+          this.airlineCache.set(code, {
+            name: airlineName,
+            timestamp: Date.now(),
+          });
+          
+          return airlineName;
+        }
+      } else {
+        console.warn(`[AMADEUS] Failed to fetch airline name for ${code}: ${response.status}`);
+      }
+    } catch (error: any) {
+      console.warn(`[AMADEUS] Error fetching airline name for ${code}:`, error.message);
+    }
+
+    // Fallback: return the code if API call fails
+    return code;
+  }
+
+  /**
+   * Batch fetch airline names for multiple codes
+   * More efficient than individual calls
+   */
+  async getAirlineNames(codes: string[]): Promise<Record<string, string>> {
+    const result: Record<string, string> = {};
+    const codesToFetch: string[] = [];
+
+    // Check cache for each code
+    for (const code of codes) {
+      const upperCode = code.toUpperCase();
+      const cached = this.airlineCache.get(upperCode);
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        result[upperCode] = cached.name;
+      } else if (upperCode.length === 2) {
+        codesToFetch.push(upperCode);
+      } else {
+        result[upperCode] = upperCode;
+      }
+    }
+
+    // Fetch uncached codes in batches (Amadeus allows multiple codes in one request)
+    if (codesToFetch.length > 0) {
+      try {
+        const token = await this.getAccessToken();
+        const uniqueCodes = [...new Set(codesToFetch)];
+        const codesParam = uniqueCodes.join(',');
+        
+        const response = await fetch(
+          `${this.baseUrl}/v1/reference-data/airlines?airlineCodes=${codesParam}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data && Array.isArray(data.data)) {
+            for (const airline of data.data) {
+              const code = airline.iataCode?.toUpperCase();
+              if (code) {
+                const airlineName = airline.businessName || airline.commonName || code;
+                result[code] = airlineName;
+                
+                // Cache the result
+                this.airlineCache.set(code, {
+                  name: airlineName,
+                  timestamp: Date.now(),
+                });
+              }
+            }
+          }
+        }
+      } catch (error: any) {
+        console.warn(`[AMADEUS] Error batch fetching airline names:`, error.message);
+      }
+    }
+
+    // Fill in any missing codes with the code itself
+    for (const code of codes) {
+      const upperCode = code.toUpperCase();
+      if (!result[upperCode]) {
+        result[upperCode] = upperCode;
+      }
+    }
+
+    return result;
+  }
 }
 
 export const amadeusClient = new AmadeusClient();
