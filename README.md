@@ -47,7 +47,7 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 - **Flight UI Cards**: Beautiful flight card components displaying structured flight data
 - **Google Places Integration**: Dynamic location and airport lookup using Google Places API
 - **Agent Workflow**: LangGraph-powered AI agent with dynamic task planning
-- **Real-time Collaboration**: Polling-based live updates for messages, plans, and votes
+- **Real-time Collaboration**: SSE (Server-Sent Events) for live updates to messages, plans, and votes
 - **Plan Version History**: Timeline view of all plan versions with creation metadata
 - **Plan Diff View**: Visual comparison showing changes between plan versions
 - **Plan Rollback**: Restore previous plan versions with one click
@@ -57,7 +57,6 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
 
 - **Memory Auto-updates**: Automatic trip memory updates from conversations
 - **Additional Tool Integrations**: Hotels, weather, attractions
-- **WebSocket/SSE**: Upgrade from polling to WebSocket for lower latency
 
 ### 📋 Planned
 
@@ -75,7 +74,7 @@ NomadSync is a full-stack web application that combines AI agents, collaborative
   - Full conflict details and resolution flow
   - Conflict history and analytics
 - **Real-time Updates**: 
-  - WebSocket/SSE for live collaboration
+  - WebSocket upgrade (SSE is implemented)
   - Push notifications for trip updates
 
 ## 🛠 Tech Stack
@@ -311,9 +310,9 @@ NomadSync provides real-time updates for collaborative planning:
 - **Plan Version Notifications**: Get notified when new plan versions are created
 - **Vote Updates**: See vote counts update in real-time as team members vote
 - **Visual Indicators**: Connection status indicator shows when real-time updates are active
-- **Polling Service**: Efficient polling system checks for updates every 3 seconds
+- **SSE (Server-Sent Events)**: Push-based updates for messages, plans, and votes—no polling. The backend broadcasts events when data changes.
 
-The real-time system automatically starts when you open a trip and stops when you navigate away, ensuring efficient resource usage.
+The real-time system automatically connects when you open a trip and disconnects when you navigate away.
 
 ### Plan Version Management
 
@@ -2097,7 +2096,7 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 - ✅ Smart airport code resolution (no hardcoded mappings)
 - ✅ Dynamic task planning
 - ✅ Navigation improvements
-- ✅ Real-time collaboration (polling-based)
+- ✅ Real-time collaboration (SSE-based)
 - ✅ Plan version history and timeline
 - ✅ Plan diff view and comparison
 - ✅ Plan rollback functionality
@@ -2106,7 +2105,6 @@ failed to compute cache key: failed to calculate checksum of ref ... "/src": not
 ### In Progress (~10%)
 - 🚧 Memory auto-updates
 - 🚧 Additional tool integrations (hotels, weather, attractions)
-- 🚧 WebSocket/SSE upgrade for lower latency (currently using polling)
 
 ### Planned (~5%)
 - 📋 Advanced plan features (lock, regenerate with specific changes)
@@ -2169,7 +2167,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Additional Documentation
 
-- **[AGENTIC_PLANNING.md](AGENTIC_PLANNING.md)** - Comprehensive guide to the AI agent system
 - **[backend/DYNAMIC_TOOLING.md](backend/DYNAMIC_TOOLING.md)** - Dynamic tooling system documentation
 
 ## 🙏 Acknowledgments
