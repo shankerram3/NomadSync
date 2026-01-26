@@ -88,12 +88,12 @@ app.options('*', (req: Request, res: Response) => {
 });
 
 // Health check endpoint (must be before catch-all routes)
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'healthy' });
 });
 
 // API root endpoint
-app.get('/api', (req: Request, res: Response) => {
+app.get('/api', (_req: Request, res: Response) => {
   res.json({ message: 'NomadSync API', version: '1.0.0' });
 });
 
@@ -115,7 +115,7 @@ const assetsDir = path.join(staticDir, 'assets');
 app.use('/assets', express.static(assetsDir));
 
 // Serve favicon
-app.get('/favicon.ico', (req: Request, res: Response) => {
+app.get('/favicon.ico', (_req: Request, res: Response) => {
   const faviconPath = path.join(staticDir, 'favicon.ico');
   res.sendFile(faviconPath, (err) => {
     if (err) {
@@ -125,7 +125,7 @@ app.get('/favicon.ico', (req: Request, res: Response) => {
 });
 
 // Serve index.html for root
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   const indexPath = path.join(staticDir, 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
@@ -161,7 +161,7 @@ app.get('*', (req: Request, res: Response) => {
 });
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: any) => {
+app.use((err: any, req: Request, res: Response, _next: any) => {
   console.error(`[${new Date().toISOString()}] Unhandled Error on ${req.method} ${req.path}:`, err);
   console.error('  Stack:', err.stack);
   res.status(err.status || 500).json({

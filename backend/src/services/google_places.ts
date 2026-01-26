@@ -93,7 +93,7 @@ class GooglePlacesClient {
         throw new Error(`Google Places API request failed: ${response.status}`);
       }
 
-      const data: GooglePlacesResponse = await response.json();
+      const data = (await response.json()) as GooglePlacesResponse;
 
       if (data.status === 'OK' || data.status === 'ZERO_RESULTS') {
         let results = data.results || [];
@@ -175,7 +175,7 @@ class GooglePlacesClient {
         throw new Error(`Google Places API request failed: ${response.status}`);
       }
 
-      const data: GooglePlacesResponse = await response.json();
+      const data = (await response.json()) as GooglePlacesResponse;
 
       if (data.status === 'OK' || data.status === 'ZERO_RESULTS') {
         // Sort by distance (closest first) - Google returns them roughly sorted but we can refine
@@ -226,7 +226,7 @@ class GooglePlacesClient {
         throw new Error(`Google Geocoding API request failed: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { status: string; results?: any[] };
 
       if (data.status === 'OK' && data.results && data.results.length > 0) {
         // Return the first (most relevant) result with geometry
@@ -277,7 +277,7 @@ class GooglePlacesClient {
         throw new Error(`Google Places API request failed: ${response.status}`);
       }
 
-      const data: PlaceDetailsResponse = await response.json();
+      const data = (await response.json()) as PlaceDetailsResponse;
 
       if (data.status === 'OK') {
         return data.result;
@@ -432,7 +432,7 @@ class GooglePlacesClient {
         throw new Error(`Google Places Autocomplete API request failed: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { status: string; predictions?: any[] };
 
       if (data.status === 'OK' && data.predictions) {
         // Autocomplete returns predictions, not full results
@@ -448,7 +448,7 @@ class GooglePlacesClient {
         );
         
         const details = await Promise.all(detailsPromises);
-        return details.filter((d): d is PlaceDetailsResult => d !== null).map(d => ({
+        return details.filter((d: PlaceDetailsResult | null): d is PlaceDetailsResult => d !== null).map((d: PlaceDetailsResult) => ({
           place_id: d.place_id,
           name: d.name,
           formatted_address: d.formatted_address,

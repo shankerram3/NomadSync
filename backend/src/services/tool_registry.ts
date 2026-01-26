@@ -38,6 +38,7 @@ export interface ToolResult {
     timestamp: string;
     cached?: boolean;
     execution_time_ms?: number;
+    [key: string]: any; // Allow tool-specific fields (location, count, orderId, originalOffers, etc.)
   };
 }
 
@@ -263,7 +264,7 @@ export const toolRegistry = new ToolRegistry();
  * Decorator function to register tools easily
  */
 export function registerTool(metadata: ToolMetadata) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
+  return function (_target: any, _propertyName: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     toolRegistry.register(metadata, originalMethod);
     return descriptor;

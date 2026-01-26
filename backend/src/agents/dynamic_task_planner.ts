@@ -148,8 +148,8 @@ function getTaskPriority(category: string): number {
  */
 export function validateTaskParameters(
   task: Task,
-  intent: TripIntent,
-  tripMemory: Record<string, any>
+  _intent: TripIntent,
+  _tripMemory: Record<string, any>
 ): { valid: boolean; missing: string[] } {
   const tool = toolRegistry.get(task.agent, task.action);
   if (!tool) {

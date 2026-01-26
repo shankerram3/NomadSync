@@ -288,36 +288,41 @@ function PlanDiffView({ version1, version2 }: PlanDiffViewProps) {
           }
 
           if (diff.type === 'modified') {
+            const day1 = diff.day1;
+            const day2 = diff.day2;
+            const activitiesRemoved = diff.activitiesRemoved ?? [];
+            const activitiesAdded = diff.activitiesAdded ?? [];
+            if (!day1 || !day2) return null;
             return (
               <div key={idx} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <ChevronRight className="w-4 h-4 text-yellow-600" />
                   <span className="text-sm font-medium text-yellow-900">
-                    Day {diff.day1.day} modified
+                    Day {day1.day} modified
                   </span>
                 </div>
                 {diff.titleChanged && (
                   <div className="text-xs mb-1">
-                    <span className="text-red-600 line-through">{diff.day1.title}</span>
+                    <span className="text-red-600 line-through">{day1.title}</span>
                     <span className="mx-2">→</span>
-                    <span className="text-green-600">{diff.day2.title}</span>
+                    <span className="text-green-600">{day2.title}</span>
                   </div>
                 )}
-                {diff.activitiesRemoved.length > 0 && (
+                {activitiesRemoved.length > 0 && (
                   <div className="text-xs mb-1">
                     <span className="text-red-600">Removed:</span>
                     <ul className="ml-4 list-disc">
-                      {diff.activitiesRemoved.map((act, i) => (
+                      {activitiesRemoved.map((act, i) => (
                         <li key={i} className="line-through">{act}</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {diff.activitiesAdded.length > 0 && (
+                {activitiesAdded.length > 0 && (
                   <div className="text-xs">
                     <span className="text-green-600">Added:</span>
                     <ul className="ml-4 list-disc">
-                      {diff.activitiesAdded.map((act, i) => (
+                      {activitiesAdded.map((act, i) => (
                         <li key={i}>{act}</li>
                       ))}
                     </ul>

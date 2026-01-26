@@ -2,7 +2,6 @@ import OpenAI from 'openai';
 import { traceable } from 'langsmith/traceable';
 import { config } from '../config.js';
 
-// Note: LangGraph TypeScript API differs significantly from Python.
 // This implements the workflow manually for now.
 
 // Initialize LangSmith tracing if enabled
@@ -675,13 +674,6 @@ Instructions:
   },
   { name: 'synthesizeResponse', run_type: 'chain' }
 );
-
-function shouldExecute(state: ExecutionState): string {
-  if (state.clarification) {
-    return 'end';
-  }
-  return 'execute';
-}
 
 // Simplified workflow runner (LangGraph TypeScript API may differ)
 // This implements the workflow manually until proper LangGraph TypeScript support

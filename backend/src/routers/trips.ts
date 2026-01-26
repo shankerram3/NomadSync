@@ -197,7 +197,7 @@ router.post('/:trip_id/invite', getCurrentUserId, async (req: AuthRequest, res: 
     
     await db.collection('trips').updateOne(
       { _id: new ObjectId(req.params.trip_id) },
-      { $push: { members: { userId: userObjId, role } } }
+      { $push: { members: { userId: userObjId, role } } } as any
     );
     
     res.json({ message: 'User invited successfully' });

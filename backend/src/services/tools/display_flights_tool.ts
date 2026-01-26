@@ -106,24 +106,6 @@ function formatTime(dateString: string): string {
   return date.toLocaleTimeString('en-US', options);
 }
 
-/**
- * Get airline name dynamically from Amadeus API
- * Falls back to code if API call fails
- */
-async function getAirlineName(code: string): Promise<string> {
-  if (!code || code.length !== 2) {
-    return code;
-  }
-
-  try {
-    const { amadeusClient } = await import('../amadeus.js');
-    return await amadeusClient.getAirlineName(code);
-  } catch (error: any) {
-    console.warn(`[DISPLAY_FLIGHTS_TOOL] Failed to get airline name for ${code}:`, error.message);
-    return code;
-  }
-}
-
 async function displayFlights(
   parameters: Record<string, any>,
   _context: Record<string, any>

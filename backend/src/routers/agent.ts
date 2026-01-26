@@ -251,7 +251,7 @@ async function generatePlanFromTasks(
     );
 
     if (!hasItineraryTasks) {
-      return;
+      return null;
     }
 
     // Build itinerary structure from completed tasks

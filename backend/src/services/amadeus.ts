@@ -95,7 +95,7 @@ class AmadeusClient {
         throw new Error(`Amadeus token request failed: ${response.status} ${errorText}`);
       }
 
-      const data: AmadeusTokenResponse = await response.json();
+      const data = (await response.json()) as AmadeusTokenResponse;
       this.accessToken = data.access_token;
       this.tokenExpiry = Date.now() + data.expires_in * 1000;
 
@@ -146,7 +146,7 @@ class AmadeusClient {
         throw new Error(`Flight search failed: ${response.status} ${errorText}`);
       }
 
-      const data: FlightSearchResponse = await response.json();
+      const data = (await response.json()) as FlightSearchResponse;
       return data;
     } catch (error: any) {
       console.error('[AMADEUS] Flight search request error:', error);
@@ -289,7 +289,7 @@ class AmadeusClient {
         throw new Error(`Airport search failed: ${response.status} ${errorText}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data?: any[] };
       const locations = data.data || [];
       
       // Log for debugging
@@ -349,7 +349,7 @@ class AmadeusClient {
       );
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { data?: any[] };
         if (data.data && data.data.length > 0) {
           const airline = data.data[0];
           const airlineName = airline.businessName || airline.commonName || code;
@@ -413,7 +413,7 @@ class AmadeusClient {
         );
 
         if (response.ok) {
-          const data = await response.json();
+          const data = (await response.json()) as { data?: any[] };
           if (data.data && Array.isArray(data.data)) {
             for (const airline of data.data) {
               const code = airline.iataCode?.toUpperCase();

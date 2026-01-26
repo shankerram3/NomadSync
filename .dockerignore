@@ -17,8 +17,5 @@ yarn-error.log*
 coverage
 .nyc_output
 *.md
-backend/.venv
-backend/__pycache__
-backend/**/__pycache__
 backend/*.log
 backend/.env
