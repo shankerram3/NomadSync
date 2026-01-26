@@ -967,15 +967,17 @@ flowchart TD
     Synthesize --> End([End])
     Clarification --> End
     
-    style Start fill:#e1f5ff
-    style End fill:#ffe1f5
-    style ParseIntent fill:#fff4e1
-    style CreateTaskPlan fill:#fff4e1
-    style ExecuteTasks fill:#e1ffe1
-    style Synthesize fill:#e1ffe1
-    style CheckClarification fill:#ffe1e1
-    style Clarification fill:#ffe1e1
+    style Start fill:#e1f5ff,color:#000000
+    style End fill:#ffe1f5,color:#000000
+    style ParseIntent fill:#fff4e1,color:#000000
+    style CreateTaskPlan fill:#fff4e1,color:#000000
+    style ExecuteTasks fill:#e1ffe1,color:#000000
+    style Synthesize fill:#e1ffe1,color:#000000
+    style CheckClarification fill:#ffe1e1,color:#000000
+    style Clarification fill:#ffe1e1,color:#000000
 ```
+<｜tool▁call▁begin｜>
+run_terminal_cmd
 
 **Workflow Details:**
 1. **parse_intent**: Uses OpenAI with JSON schema to extract structured trip data from natural language
