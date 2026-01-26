@@ -86,11 +86,12 @@ const displayFlightsToolMetadata: ToolMetadata = {
   timeout: 5000,
 };
 
-// Airline code to name mapping
+// Airline code to name mapping (IATA codes)
 const AIRLINE_NAMES: Record<string, string> = {
+  // Major US Airlines
   'WN': 'Southwest Airlines',
   'AA': 'American Airlines',
-  'DL': 'Delta Airlines',
+  'DL': 'Delta Air Lines',
   'UA': 'United Airlines',
   'AS': 'Alaska Airlines',
   'B6': 'JetBlue Airways',
@@ -98,6 +99,121 @@ const AIRLINE_NAMES: Record<string, string> = {
   'NK': 'Spirit Airlines',
   'G4': 'Allegiant Air',
   'SY': 'Sun Country Airlines',
+  'HA': 'Hawaiian Airlines',
+  
+  // Middle East Airlines
+  'EK': 'Emirates',
+  'QR': 'Qatar Airways',
+  'EY': 'Etihad Airways',
+  'SV': 'Saudia',
+  'GF': 'Gulf Air',
+  'KU': 'Kuwait Airways',
+  'RJ': 'Royal Jordanian',
+  'MS': 'EgyptAir',
+  'OM': 'Mongolian Airlines',
+  
+  // European Airlines
+  'AF': 'Air France',
+  'LH': 'Lufthansa',
+  'BA': 'British Airways',
+  'KL': 'KLM Royal Dutch Airlines',
+  'IB': 'Iberia',
+  'AZ': 'ITA Airways',
+  'SN': 'Brussels Airlines',
+  'LX': 'Swiss International Air Lines',
+  'OS': 'Austrian Airlines',
+  'SK': 'SAS Scandinavian Airlines',
+  'TP': 'TAP Air Portugal',
+  'AY': 'Finnair',
+  'LO': 'LOT Polish Airlines',
+  'OK': 'Czech Airlines',
+  'TK': 'Turkish Airlines',
+  'A3': 'Aegean Airlines',
+  'FR': 'Ryanair',
+  'U2': 'easyJet',
+  'VY': 'Vueling',
+  'EW': 'Eurowings',
+  
+  // Asian Airlines
+  'AI': 'Air India',
+  'SG': 'SpiceJet',
+  '6E': 'IndiGo',
+  '9W': 'Jet Airways',
+  'IX': 'Air India Express',
+  'G8': 'Go First',
+  'SQ': 'Singapore Airlines',
+  'CX': 'Cathay Pacific',
+  'TG': 'Thai Airways',
+  'MH': 'Malaysia Airlines',
+  'GA': 'Garuda Indonesia',
+  'JL': 'Japan Airlines',
+  'NH': 'All Nippon Airways',
+  'KE': 'Korean Air',
+  'OZ': 'Asiana Airlines',
+  'CI': 'China Airlines',
+  'BR': 'EVA Air',
+  'PR': 'Philippine Airlines',
+  '5J': 'Cebu Pacific',
+  'VN': 'Vietnam Airlines',
+  'QF': 'Qantas',
+  'JQ': 'Jetstar Airways',
+  'VA': 'Virgin Australia',
+  
+  // African Airlines
+  'ET': 'Ethiopian Airlines',
+  'SA': 'South African Airways',
+  'KQ': 'Kenya Airways',
+  'WB': 'RwandAir',
+  'AT': 'Royal Air Maroc',
+  
+  // Latin American Airlines
+  'LA': 'LATAM Airlines',
+  'AV': 'Avianca',
+  'CM': 'Copa Airlines',
+  'AR': 'Aerolíneas Argentinas',
+  'AM': 'Aeroméxico',
+  'VB': 'VivaAerobus',
+  'VB': 'Volaris',
+  
+  // Canadian Airlines
+  'AC': 'Air Canada',
+  'WS': 'WestJet',
+  
+  // Other Major Airlines
+  'VS': 'Virgin Atlantic',
+  'NZ': 'Air New Zealand',
+  'FJ': 'Fiji Airways',
+  'WY': 'Oman Air',
+  'UL': 'SriLankan Airlines',
+  'BG': 'Biman Bangladesh Airlines',
+  'PK': 'Pakistan International Airlines',
+  'PG': 'Bangkok Airways',
+  'MI': 'SilkAir',
+  'TR': 'Tigerair',
+  '3K': 'Jetstar Asia',
+  'FD': 'Thai AirAsia',
+  'AK': 'AirAsia',
+  'D7': 'AirAsia X',
+  'Z2': 'AirAsia Zest',
+  'QZ': 'Indonesia AirAsia',
+  'I5': 'AirAsia India',
+  'XJ': 'Thai AirAsia X',
+  
+  // Low Cost Carriers
+  'NK': 'Spirit Airlines',
+  'F9': 'Frontier Airlines',
+  'G4': 'Allegiant Air',
+  'SY': 'Sun Country Airlines',
+  
+  // Regional Airlines
+  'YX': 'Republic Airways',
+  'MQ': 'Envoy Air',
+  'OH': 'PSA Airlines',
+  '9E': 'Endeavor Air',
+  'OO': 'SkyWest Airlines',
+  'YV': 'Mesa Airlines',
+  'QX': 'Horizon Air',
+  '9K': 'Cape Air',
 };
 
 function formatDate(dateString: string): string {
